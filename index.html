@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Alokpat - Next-Gen Social Media</title>
+    <meta name="description" content="Alokpat is a mobile-first social media platform featuring posts, comments, smart tag search, user verification, rich notifications, and full admin management." />
+    <meta property="og:title" content="Alokpat - Next-Gen Social Media" />
+    <meta property="og:description" content="Alokpat is a mobile-first social media platform featuring posts, comments, smart tag search, user verification, rich notifications, and full admin management." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="https://cdn.phototourl.com/member/2026-10-08-8ec4cdef-3d01-41f5-9311-bdd705d46a0e.jpg" />
+    <meta property="og:image" content="https://cdn.phototourl.com/member/2026-10-08-8ec4cdef-3d01-41f5-9311-bdd705d46a0e.jpg" />
+    <link rel="icon" type="image/jpeg" href="https://cdn.phototourl.com/member/2026-10-08-8ec4cdef-3d01-41f5-9311-bdd705d46a0e.jpg" />
+    <link rel="shortcut icon" href="https://cdn.phototourl.com/member/2026-10-08-8ec4cdef-3d01-41f5-9311-bdd705d46a0e.jpg" />
+    <link rel="apple-touch-icon" href="https://cdn.phototourl.com/member/2026-10-08-8ec4cdef-3d01-41f5-9311-bdd705d46a0e.jpg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script>
+      (function() {
+        try {
+          var _currentFetch = typeof window !== 'undefined' && window.fetch ? window.fetch.bind(window) : null;
+          
+          // Provide both getter and setter for window.fetch so browser extensions can safely hook into fetch
+          try {
+            Object.defineProperty(window, 'fetch', {
+              configurable: true,
+              enumerable: true,
+              get: function() {
+                return _currentFetch;
+              },
+              set: function(fn) {
+                _currentFetch = fn;
+              }
+            });
+          } catch (e1) {
+            try {
+              var proto = Object.getPrototypeOf(window);
+              if (proto) {
+                Object.defineProperty(proto, 'fetch', {
+                  configurable: true,
+                  enumerable: true,
+                  get: function() {
+                    return _currentFetch;
+                  },
+                  set: function(fn) {
+                    _currentFetch = fn;
+                  }
+                });
+              }
+            } catch (e2) {}
+          }
+        } catch (e) {}
+
+        // Global handler to intercept extension-injected script errors gracefully
+        if (typeof window !== 'undefined') {
+          window.addEventListener('error', function(event) {
+            if (
+              event &&
+              ((event.message && event.message.indexOf('fetch') !== -1 && event.message.indexOf('getter') !== -1) ||
+               (event.filename && event.filename.indexOf('chrome-extension://') !== -1))
+            ) {
+              event.preventDefault();
+              event.stopImmediatePropagation();
+              return true;
+            }
+          }, true);
+
+          window.addEventListener('unhandledrejection', function(event) {
+            if (
+              event && event.reason &&
+              ((event.reason.message && event.reason.message.indexOf('fetch') !== -1 && event.reason.message.indexOf('getter') !== -1) ||
+               (event.reason.stack && event.reason.stack.indexOf('chrome-extension://') !== -1))
+            ) {
+              event.preventDefault();
+              event.stopImmediatePropagation();
+              return true;
+            }
+          }, true);
+        }
+      })();
+    </script>
+  </head>
+  <body class="bg-neutral-100 dark:bg-neutral-950 font-sans antialiased text-neutral-900 dark:text-neutral-100 selection:bg-purple-600 selection:text-white">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

@@ -1,0 +1,121 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile data for registered users in Alokpat",
+      "type": "object",
+      "properties": {
+        "id": { "type": "number", "description": "Numeric user identifier" },
+        "name": { "type": "string", "maxLength": 100, "description": "Full name" },
+        "username": { "type": "string", "maxLength": 30, "description": "Unique username handle" },
+        "email": { "type": "string", "maxLength": 120, "description": "Email address" },
+        "phone": { "type": "string", "maxLength": 25, "description": "Phone number" },
+        "bio": { "type": "string", "maxLength": 300, "description": "User profile biography" },
+        "avatar": { "type": "string", "description": "Avatar image URL or data string" },
+        "isVerified": { "type": "boolean", "description": "Verification status" },
+        "verificationStatus": { "type": "string", "enum": ["none", "pending", "verified", "rejected"] },
+        "followers": { "type": "array", "description": "Array of follower user IDs" },
+        "following": { "type": "array", "description": "Array of following user IDs" },
+        "warningCount": { "type": "number", "description": "Count of moderation warnings" },
+        "isBanned": { "type": "boolean", "description": "Ban status" },
+        "isPrivate": { "type": "boolean", "description": "Private account toggle" },
+        "pinnedPostIds": { "type": "array", "description": "IDs of posts pinned by user" },
+        "savedPostIds": { "type": "array", "description": "IDs of posts saved/bookmarked by user" },
+        "createdAt": { "type": "string", "description": "ISO timestamp of account creation" }
+      },
+      "required": ["id", "name", "username", "createdAt"]
+    },
+    "Post": {
+      "title": "Post",
+      "description": "User generated feed post",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique post identifier" },
+        "userId": { "type": "number", "description": "ID of post author" },
+        "caption": { "type": "string", "maxLength": 2000, "description": "Post caption text" },
+        "images": { "type": "array", "description": "List of attached image URLs" },
+        "likes": { "type": "array", "description": "List of user IDs who liked the post" },
+        "reactions": { "type": "object", "description": "Reaction counts or mappings" },
+        "commentsCount": { "type": "number", "description": "Total comments on post" },
+        "keywords": { "type": "array", "description": "List of keyword tags" },
+        "hideComments": { "type": "boolean", "description": "Whether comments are disabled" },
+        "isPinned": { "type": "boolean", "description": "Whether post is pinned" },
+        "isAIPost": { "type": "boolean", "description": "Whether post is AI generated" },
+        "createdAt": { "type": "string", "description": "ISO timestamp of creation" }
+      },
+      "required": ["id", "userId", "caption", "createdAt"]
+    },
+    "Comment": {
+      "title": "Comment",
+      "description": "Comment on a post",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique comment identifier" },
+        "postId": { "type": "string", "description": "ID of the post" },
+        "userId": { "type": "number", "description": "ID of the commenter" },
+        "text": { "type": "string", "maxLength": 1000, "description": "Comment text" },
+        "likes": { "type": "array", "description": "List of user IDs who liked the comment" },
+        "parentId": { "type": "string", "description": "Optional parent comment ID for replies" },
+        "createdAt": { "type": "string", "description": "ISO timestamp of creation" }
+      },
+      "required": ["id", "postId", "userId", "text", "createdAt"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "App notification sent to a user",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique notification identifier" },
+        "userId": { "type": "number", "description": "Recipient user ID" },
+        "senderId": { "type": "number", "description": "Sender user ID" },
+        "type": { "type": "string", "enum": ["like", "reaction", "comment", "reply", "follow", "admin_notice", "admin_broadcast"] },
+        "postId": { "type": "string", "description": "Related post ID if applicable" },
+        "title": { "type": "string", "maxLength": 200, "description": "Notification title" },
+        "message": { "type": "string", "maxLength": 1000, "description": "Notification message" },
+        "isRead": { "type": "boolean", "description": "Read flag" },
+        "urgency": { "type": "string", "enum": ["normal", "info", "warning", "alert"] },
+        "createdAt": { "type": "string", "description": "ISO timestamp of creation" }
+      },
+      "required": ["id", "userId", "type", "title", "message", "createdAt"]
+    },
+    "Report": {
+      "title": "Report",
+      "description": "Moderation report filed by a user",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique report identifier" },
+        "contentType": { "type": "string", "enum": ["post", "comment", "user"] },
+        "contentId": { "type": "string", "description": "ID of the reported content" },
+        "reporterUserId": { "type": "number", "description": "ID of reporting user" },
+        "reportedUserId": { "type": "number", "description": "ID of reported user" },
+        "reason": { "type": "string", "description": "Report reason" },
+        "details": { "type": "string", "maxLength": 1000, "description": "Additional report details" },
+        "status": { "type": "string", "enum": ["pending", "resolved", "dismissed"] },
+        "createdAt": { "type": "string", "description": "ISO timestamp of creation" }
+      },
+      "required": ["id", "contentType", "contentId", "reportedUserId", "reason", "status", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profiles indexed by document ID"
+    },
+    "/posts/{postId}": {
+      "schema": { "$ref": "#/entities/Post" },
+      "description": "All published feed posts"
+    },
+    "/comments/{commentId}": {
+      "schema": { "$ref": "#/entities/Comment" },
+      "description": "Comments and replies on posts"
+    },
+    "/notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/Notification" },
+      "description": "In-app notifications for users"
+    },
+    "/reports/{reportId}": {
+      "schema": { "$ref": "#/entities/Report" },
+      "description": "Content moderation reports"
+    }
+  }
+}

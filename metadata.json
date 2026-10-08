@@ -1,0 +1,6 @@
+{
+  "name": "Alokpat - Next-Gen Social Media",
+  "description": "Alokpat is a mobile-first social media platform featuring posts, comments, smart tag search, user verification, rich notifications, and full admin management.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
