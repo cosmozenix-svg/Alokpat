@@ -62,6 +62,7 @@ interface AppContextType {
   // Profile & Social
   toggleFollow: (targetUserId: number) => void;
   updateProfile: (updates: Partial<User>) => { success: boolean; error?: string };
+  changePassword: (oldPassword: string, newPassword: string) => { success: boolean; error?: string };
   requestVerification: (reason?: string) => { success: boolean; message: string };
   getUserById: (id: number) => User | undefined;
 
@@ -528,7 +529,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 sad: '😢',
               };
               const reactionNameMap: Record<ReactionType, string> = {
-                heart: 'Heart',
+                heart: 'Like',
                 fire: 'Fire',
                 laugh: 'Laugh',
                 clap: 'Clap',
@@ -542,8 +543,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 actorId: currentUser.id,
                 postId: p.id,
                 reactionType,
-                title: `${reactionEmojiMap[reactionType]} New Reaction`,
-                message: `${currentUser.name} (@${currentUser.username}) reacted with ${reactionEmojiMap[reactionType]} (${reactionNameMap[reactionType]}) to your post.`,
+                title: reactionType === 'heart' ? '❤️ New Like' : `${reactionEmojiMap[reactionType]} New Reaction`,
+                message: reactionType === 'heart'
+                  ? `${currentUser.name} (@${currentUser.username}) liked your post.`
+                  : `${currentUser.name} (@${currentUser.username}) reacted with ${reactionEmojiMap[reactionType]} (${reactionNameMap[reactionType]}) to your post.`,
                 isRead: false,
                 createdAt: new Date().toISOString()
               };
@@ -862,6 +865,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       prev.map(u => {
         if (u.id === currentUser.id) {
           const updated = { ...u, ...updates };
+          syncUserToDb(updated).catch(() => {});
+          return updated;
+        }
+        return u;
+      })
+    );
+
+    return { success: true };
+  };
+
+  const changePassword = (oldPassword: string, newPassword: string) => {
+    if (!currentUser) {
+      return { success: false, error: 'Please sign in to change your password.' };
+    }
+    if (!oldPassword) {
+      return { success: false, error: 'Please enter your current password.' };
+    }
+    if (currentUser.password !== oldPassword) {
+      return { success: false, error: 'Current password is incorrect.' };
+    }
+    if (!newPassword || newPassword.length < 6) {
+      return { success: false, error: 'New password must be at least 6 characters long.' };
+    }
+    if (oldPassword === newPassword) {
+      return { success: false, error: 'New password must be different from your old password.' };
+    }
+
+    setUsers(prev =>
+      prev.map(u => {
+        if (u.id === currentUser.id) {
+          const updated = { ...u, password: newPassword };
           syncUserToDb(updated).catch(() => {});
           return updated;
         }
@@ -1235,6 +1269,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         getPostComments,
         toggleFollow,
         updateProfile,
+        changePassword,
         requestVerification,
         getUserById,
         reports,

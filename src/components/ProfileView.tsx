@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Edit3,
   Camera,
@@ -6,6 +6,7 @@ import {
   Heart,
   Bookmark,
   Grid,
+  List,
   Lock,
   Calendar,
   MapPin,
@@ -19,8 +20,15 @@ import {
   CheckCircle2,
   Sparkles,
   Award,
+  MessageCircle,
+  Layers,
+  Pin,
+  ChevronLeft,
+  ChevronRight,
+  FileText,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { Post } from '../types';
 import { UserAvatar } from './UserAvatar';
 import { VerifiedBadge } from './VerifiedBadge';
 import { PostCard } from './PostCard';
@@ -120,6 +128,51 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ userId }) => {
   const likedPosts = posts.filter(p => p.likes.includes(user.id));
   const savedPosts = posts.filter(p => user.savedPostIds?.includes(p.id));
   const totalLikesReceived = userPosts.reduce((acc, p) => acc + p.likes.length, 0);
+
+  // Layout mode & Post Detail Preview modal state
+  const [viewLayout, setViewLayout] = useState<'grid' | 'list'>('grid');
+  const [selectedPostForDetail, setSelectedPostForDetail] = useState<Post | null>(null);
+
+  // Active list of posts for current tab
+  const currentTabPosts = useMemo(() => {
+    if (activeTabSub === 'posts') return sortedUserPosts;
+    if (activeTabSub === 'media') return mediaPosts;
+    if (activeTabSub === 'liked') return likedPosts;
+    if (activeTabSub === 'saved') return savedPosts;
+    return [];
+  }, [activeTabSub, sortedUserPosts, mediaPosts, likedPosts, savedPosts]);
+
+  const selectedPostIndex = useMemo(() => {
+    if (!selectedPostForDetail) return -1;
+    return currentTabPosts.findIndex(p => p.id === selectedPostForDetail.id);
+  }, [selectedPostForDetail, currentTabPosts]);
+
+  const handlePrevPost = () => {
+    if (selectedPostIndex > 0) {
+      setSelectedPostForDetail(currentTabPosts[selectedPostIndex - 1]);
+    }
+  };
+
+  const handleNextPost = () => {
+    if (selectedPostIndex >= 0 && selectedPostIndex < currentTabPosts.length - 1) {
+      setSelectedPostForDetail(currentTabPosts[selectedPostIndex + 1]);
+    }
+  };
+
+  // Keyboard navigation for post detail modal
+  useEffect(() => {
+    if (!selectedPostForDetail) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSelectedPostForDetail(null);
+      else if (e.key === 'ArrowLeft' && selectedPostIndex > 0) {
+        setSelectedPostForDetail(currentTabPosts[selectedPostIndex - 1]);
+      } else if (e.key === 'ArrowRight' && selectedPostIndex >= 0 && selectedPostIndex < currentTabPosts.length - 1) {
+        setSelectedPostForDetail(currentTabPosts[selectedPostIndex + 1]);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedPostForDetail, selectedPostIndex, currentTabPosts]);
 
   const handleOpenEdit = () => {
     setEditName(user.name);
@@ -227,14 +280,14 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ userId }) => {
                 <>
                   <button
                     onClick={handleOpenEdit}
-                    className="px-3.5 py-1.5 rounded-xl bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-750 text-neutral-800 dark:text-neutral-200 text-xs font-semibold flex items-center gap-1.5 active:scale-95 transition-all cursor-pointer border border-neutral-200/70 dark:border-neutral-700/60 shadow-2xs"
+                    className="px-3.5 py-1.5 rounded-xl bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-neutral-800 dark:text-white text-xs font-semibold flex items-center gap-1.5 active:scale-95 transition-all cursor-pointer border border-neutral-200/70 dark:border-white/30 shadow-2xs"
                   >
                     <Edit3 size={13} />
                     <span>Edit Profile</span>
                   </button>
                   <button
                     onClick={() => setActiveTab('settings')}
-                    className="p-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-750 text-neutral-700 dark:text-neutral-300 active:scale-90 transition-all cursor-pointer border border-neutral-200/70 dark:border-neutral-700/60 shadow-2xs"
+                    className="p-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-700 dark:text-white active:scale-90 transition-all cursor-pointer border border-neutral-200/70 dark:border-white/30 shadow-2xs"
                     title="Settings"
                   >
                     <SettingsIcon size={15} />
@@ -245,7 +298,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ userId }) => {
                   onClick={() => toggleFollow(user.id)}
                   className={`px-4 py-1.5 rounded-xl text-xs font-semibold active:scale-95 transition-all cursor-pointer ${
                     isFollowing
-                      ? 'bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/30 dark:hover:text-rose-400 border border-neutral-200/80 dark:border-neutral-700'
+                      ? 'bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-white hover:bg-neutral-200 dark:hover:bg-neutral-700 border border-neutral-200/80 dark:border-white/30'
                       : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-xs hover:shadow-md hover:shadow-purple-500/25 border border-purple-500/30'
                   }`}
                 >
@@ -265,7 +318,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ userId }) => {
               {!user.isVerified && isSelf && (
                 <button
                   onClick={() => setIsVerificationModalOpen(true)}
-                  className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-600 dark:text-blue-400 border border-blue-200/80 dark:border-blue-800/60 active:scale-95 transition-all cursor-pointer shadow-2xs"
+                  className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-blue-600 dark:text-blue-300 border border-blue-200/80 dark:border-white/30 active:scale-95 transition-all cursor-pointer shadow-2xs"
                   title="Apply for Alokpat Verified Badge"
                 >
                   <ShieldCheck size={12} />
@@ -329,145 +382,291 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ userId }) => {
           </div>
 
           {/* Stats Bar */}
-          <div className="mt-3.5 grid grid-cols-4 gap-2 p-2.5 bg-neutral-50 dark:bg-neutral-850 rounded-xl border border-neutral-200/60 dark:border-neutral-800 text-center">
+          <div className="profile-stats-box mt-3.5 grid grid-cols-4 gap-2 p-2.5 bg-neutral-100 dark:bg-[#27272a] rounded-xl border border-neutral-200/80 dark:border-white/30 text-center shadow-xs">
             <div>
               <p className="text-sm font-bold text-neutral-900 dark:text-white">{userPosts.length}</p>
-              <p className="text-[11px] font-medium text-neutral-600 dark:text-neutral-300">Posts</p>
+              <p className="text-[11px] font-medium text-neutral-600 dark:text-white">Posts</p>
             </div>
             <div>
               <p className="text-sm font-bold text-neutral-900 dark:text-white">{(user.followers || []).length}</p>
-              <p className="text-[11px] font-medium text-neutral-600 dark:text-neutral-300">Followers</p>
+              <p className="text-[11px] font-medium text-neutral-600 dark:text-white">Followers</p>
             </div>
             <div>
               <p className="text-sm font-bold text-neutral-900 dark:text-white">{(user.following || []).length}</p>
-              <p className="text-[11px] font-medium text-neutral-600 dark:text-neutral-300">Following</p>
+              <p className="text-[11px] font-medium text-neutral-600 dark:text-white">Following</p>
             </div>
             <div>
               <p className="text-sm font-bold text-neutral-900 dark:text-white">{totalLikesReceived}</p>
-              <p className="text-[11px] font-medium text-neutral-600 dark:text-neutral-300">Loves</p>
+              <p className="text-[11px] font-medium text-neutral-600 dark:text-white">Likes</p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Content Tabs */}
-      <div className="flex bg-neutral-100/90 dark:bg-neutral-850/90 rounded-2xl p-1 mb-3.5 border border-neutral-200/60 dark:border-neutral-800">
-        <button
-          onClick={() => setActiveTabSub('posts')}
-          className={`flex-1 py-1.5 text-xs font-semibold rounded-xl transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 ${
-            activeTabSub === 'posts'
-              ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-xs font-bold border border-neutral-200/50 dark:border-neutral-700/50'
-              : 'text-neutral-600 hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-white hover:bg-white/50 dark:hover:bg-neutral-800/50'
-          }`}
-        >
-          <Grid size={13} />
-          <span>Posts ({userPosts.length})</span>
-        </button>
-        <button
-          onClick={() => setActiveTabSub('media')}
-          className={`flex-1 py-1.5 text-xs font-semibold rounded-xl transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 ${
-            activeTabSub === 'media'
-              ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-xs font-bold border border-neutral-200/50 dark:border-neutral-700/50'
-              : 'text-neutral-600 hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-white hover:bg-white/50 dark:hover:bg-neutral-800/50'
-          }`}
-        >
-          <ImageIcon size={13} />
-          <span>Media ({mediaPosts.length})</span>
-        </button>
-        <button
-          onClick={() => setActiveTabSub('liked')}
-          className={`flex-1 py-1.5 text-xs font-semibold rounded-xl transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 ${
-            activeTabSub === 'liked'
-              ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-xs font-bold border border-neutral-200/50 dark:border-neutral-700/50'
-              : 'text-neutral-600 hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-white hover:bg-white/50 dark:hover:bg-neutral-800/50'
-          }`}
-        >
-          <Heart size={13} />
-          <span>Loved ({likedPosts.length})</span>
-        </button>
-        <button
-          onClick={() => setActiveTabSub('saved')}
-          className={`flex-1 py-1.5 text-xs font-semibold rounded-xl transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 ${
-            activeTabSub === 'saved'
-              ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-xs font-bold border border-neutral-200/50 dark:border-neutral-700/50'
-              : 'text-neutral-600 hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-white hover:bg-white/50 dark:hover:bg-neutral-800/50'
-          }`}
-        >
-          <Bookmark size={13} />
-          <span>Saved ({savedPosts.length})</span>
-        </button>
+      {/* Content Tabs & Layout Switcher */}
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <div className="flex-1 flex bg-neutral-100/90 dark:bg-[#27272a] rounded-2xl p-1 border border-neutral-200/60 dark:border-white/20">
+          <button
+            onClick={() => setActiveTabSub('posts')}
+            className={`flex-1 py-1.5 text-xs font-semibold rounded-xl transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 ${
+              activeTabSub === 'posts'
+                ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-xs font-bold border border-neutral-200/50 dark:border-white/30'
+                : 'text-neutral-600 hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-white'
+            }`}
+          >
+            <Grid size={13} />
+            <span>Posts ({userPosts.length})</span>
+          </button>
+          <button
+            onClick={() => setActiveTabSub('media')}
+            className={`flex-1 py-1.5 text-xs font-semibold rounded-xl transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 ${
+              activeTabSub === 'media'
+                ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-xs font-bold border border-neutral-200/50 dark:border-white/30'
+                : 'text-neutral-600 hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-white'
+            }`}
+          >
+            <ImageIcon size={13} />
+            <span>Media ({mediaPosts.length})</span>
+          </button>
+          <button
+            onClick={() => setActiveTabSub('liked')}
+            className={`flex-1 py-1.5 text-xs font-semibold rounded-xl transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 ${
+              activeTabSub === 'liked'
+                ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-xs font-bold border border-neutral-200/50 dark:border-white/30'
+                : 'text-neutral-600 hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-white'
+            }`}
+          >
+            <Heart size={13} />
+            <span>Liked ({likedPosts.length})</span>
+          </button>
+          <button
+            onClick={() => setActiveTabSub('saved')}
+            className={`flex-1 py-1.5 text-xs font-semibold rounded-xl transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 ${
+              activeTabSub === 'saved'
+                ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-xs font-bold border border-neutral-200/50 dark:border-white/30'
+                : 'text-neutral-600 hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-white'
+            }`}
+          >
+            <Bookmark size={13} />
+            <span>Saved ({savedPosts.length})</span>
+          </button>
+        </div>
+
+        {/* View Style Switcher (Grid vs Feed) */}
+        <div className="flex bg-neutral-100/90 dark:bg-[#27272a] rounded-xl p-1 border border-neutral-200/60 dark:border-white/20">
+          <button
+            onClick={() => setViewLayout('grid')}
+            className={`p-1.5 rounded-lg transition-all active:scale-95 cursor-pointer ${
+              viewLayout === 'grid'
+                ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-xs border border-neutral-200/60 dark:border-white/30'
+                : 'text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white'
+            }`}
+            title="Grid View (Tap to view details)"
+          >
+            <Grid size={14} />
+          </button>
+          <button
+            onClick={() => setViewLayout('list')}
+            className={`p-1.5 rounded-lg transition-all active:scale-95 cursor-pointer ${
+              viewLayout === 'list'
+                ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-xs border border-neutral-200/60 dark:border-white/30'
+                : 'text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white'
+            }`}
+            title="Full Feed View"
+          >
+            <List size={14} />
+          </button>
+        </div>
       </div>
 
-      {/* Tab Contents */}
-      {activeTabSub === 'posts' && (
-        <div className="space-y-3">
-          {sortedUserPosts.length === 0 ? (
-            <div className="bg-white dark:bg-neutral-900 rounded-2xl p-8 text-center border border-neutral-200 dark:border-neutral-800">
-              <p className="text-xs text-neutral-400">No posts shared yet.</p>
-            </div>
-          ) : (
-            sortedUserPosts.map(p => <PostCard key={p.id} post={p} />)
-          )}
-        </div>
-      )}
+      {/* Grid Rendering Helper Function */}
+      {(() => {
+        const renderContent = (postList: Post[], emptyMsg: string, emptyIcon?: React.ReactNode) => {
+          if (postList.length === 0) {
+            return (
+              <div className="bg-white dark:bg-neutral-900 rounded-2xl p-8 text-center border border-neutral-200 dark:border-neutral-800 space-y-2">
+                {emptyIcon && (
+                  <div className="w-10 h-10 mx-auto rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-400 flex items-center justify-center border border-neutral-200/60 dark:border-white/20">
+                    {emptyIcon}
+                  </div>
+                )}
+                <p className="text-xs text-neutral-400">{emptyMsg}</p>
+              </div>
+            );
+          }
 
-      {activeTabSub === 'media' && (
-        <div className="grid grid-cols-2 gap-2">
-          {mediaPosts.length === 0 ? (
-            <div className="col-span-2 bg-white dark:bg-neutral-900 rounded-2xl p-8 text-center border border-neutral-200 dark:border-neutral-800">
-              <p className="text-xs text-neutral-400">No media uploaded yet.</p>
+          if (viewLayout === 'list') {
+            return (
+              <div className="space-y-3">
+                {postList.map(p => (
+                  <PostCard key={p.id} post={p} />
+                ))}
+              </div>
+            );
+          }
+
+          return (
+            <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
+              {postList.map(p => {
+                const hasImages = p.images && p.images.length > 0;
+                const loveTotal = (p.reactions?.heart?.length || 0) + (p.likes?.length || 0);
+                return (
+                  <div
+                    key={p.id}
+                    onClick={() => setSelectedPostForDetail(p)}
+                    className="relative aspect-square rounded-xl overflow-hidden group bg-neutral-100 dark:bg-neutral-850 border border-neutral-200/70 dark:border-white/20 cursor-pointer shadow-2xs hover:shadow-md transition-all active:scale-[0.98]"
+                    title="Click to preview full post with every single detail"
+                  >
+                    {hasImages ? (
+                      <>
+                        <img
+                          src={p.images[0]}
+                          alt={p.caption || 'Post preview'}
+                          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                          loading="lazy"
+                        />
+                        {/* Multiple photos indicator */}
+                        {p.images.length > 1 && (
+                          <div className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded-md bg-black/60 backdrop-blur-xs text-white text-[10px] font-semibold flex items-center gap-1 border border-white/20">
+                            <Layers size={10} />
+                            <span>{p.images.length}</span>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="w-full h-full bg-gradient-to-br from-neutral-50 to-neutral-150 dark:from-neutral-800 dark:to-neutral-850 p-2 sm:p-2.5 flex flex-col justify-between text-left">
+                        <div className="flex items-center justify-between">
+                          <div className="w-5 h-5 rounded-md bg-purple-100 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 flex items-center justify-center">
+                            <FileText size={11} />
+                          </div>
+                          {p.isPinned && (
+                            <span className="p-0.5 rounded bg-purple-600 text-white">
+                              <Pin size={10} className="rotate-45" />
+                            </span>
+                          )}
+                        </div>
+
+                        <p className="line-clamp-3 sm:line-clamp-4 text-[10px] sm:text-xs font-medium text-neutral-800 dark:text-neutral-100 leading-snug whitespace-pre-wrap">
+                          {p.caption || 'Shared post'}
+                        </p>
+
+                        <div className="flex items-center justify-between text-[10px] text-neutral-500 dark:text-neutral-400 pt-1 border-t border-neutral-200/60 dark:border-neutral-800">
+                          <span className="flex items-center gap-1 font-semibold text-rose-500">
+                            <Heart size={10} className="fill-current" />
+                            {loveTotal}
+                          </span>
+                          <span className="flex items-center gap-1 font-semibold">
+                            <MessageCircle size={10} />
+                            {p.commentsCount}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Pinned badge on image cards */}
+                    {hasImages && p.isPinned && (
+                      <div className="absolute top-1.5 left-1.5 p-1 rounded-md bg-purple-600 text-white shadow-xs">
+                        <Pin size={10} className="rotate-45" />
+                      </div>
+                    )}
+
+                    {/* Hover / Tap overlay with quick stats */}
+                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3 text-white font-bold text-xs pointer-events-none">
+                      <span className="flex items-center gap-1 drop-shadow">
+                        <Heart size={13} className="fill-white" />
+                        {loveTotal}
+                      </span>
+                      <span className="flex items-center gap-1 drop-shadow">
+                        <MessageCircle size={13} className="fill-white" />
+                        {p.commentsCount}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          ) : (
-            mediaPosts.map(p => (
-              <div
-                key={p.id}
-                className="relative aspect-square rounded-xl overflow-hidden group bg-neutral-100 dark:bg-neutral-800"
-              >
-                <img
-                  src={p.images[0]}
-                  alt="Media thumbnail"
-                  className="w-full h-full object-cover"
-                />
-                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 text-white font-semibold text-xs">
-                  <span className="flex items-center gap-1">
-                    <Heart size={13} className="fill-white" /> {p.likes.length}
+          );
+        };
+
+        if (activeTabSub === 'posts') {
+          return renderContent(sortedUserPosts, 'No posts shared yet.');
+        }
+        if (activeTabSub === 'media') {
+          return renderContent(mediaPosts, 'No media uploaded yet.', <ImageIcon size={18} />);
+        }
+        if (activeTabSub === 'liked') {
+          return renderContent(likedPosts, 'No liked posts yet.', <Heart size={18} />);
+        }
+        if (activeTabSub === 'saved') {
+          return renderContent(
+            savedPosts,
+            isSelf ? 'Tap bookmark on any post to save it for easy access later.' : 'This user has no saved posts.',
+            <Bookmark size={18} />
+          );
+        }
+        return null;
+      })()}
+
+      {/* Full Post Detail Preview Modal */}
+      {selectedPostForDetail && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={() => setSelectedPostForDetail(null)}
+        >
+          <div
+            className="relative w-full max-w-lg bg-neutral-50 dark:bg-neutral-900 rounded-2xl shadow-2xl border border-neutral-200 dark:border-white/30 overflow-hidden flex flex-col max-h-[92vh] animate-in zoom-in-95 duration-150"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal Top Bar with Navigation Controls */}
+            <div className="px-3.5 py-2.5 border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 flex items-center justify-between z-10 sticky top-0">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-neutral-900 dark:text-white">
+                  Post Details
+                </span>
+                {selectedPostIndex >= 0 && (
+                  <span className="text-[11px] font-mono text-neutral-400">
+                    ({selectedPostIndex + 1} of {currentTabPosts.length})
                   </span>
-                </div>
+                )}
               </div>
-            ))
-          )}
-        </div>
-      )}
 
-      {activeTabSub === 'liked' && (
-        <div className="space-y-3">
-          {likedPosts.length === 0 ? (
-            <div className="bg-white dark:bg-neutral-900 rounded-2xl p-8 text-center border border-neutral-200 dark:border-neutral-800">
-              <p className="text-xs text-neutral-400">No liked posts yet.</p>
-            </div>
-          ) : (
-            likedPosts.map(p => <PostCard key={p.id} post={p} />)
-          )}
-        </div>
-      )}
+              <div className="flex items-center gap-1.5">
+                {/* Previous Post */}
+                <button
+                  onClick={handlePrevPost}
+                  disabled={selectedPostIndex <= 0}
+                  className="p-1.5 rounded-lg bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-700 dark:text-white border border-neutral-200 dark:border-white/30 disabled:opacity-30 disabled:pointer-events-none active:scale-95 transition-all cursor-pointer"
+                  title="Previous Post (Left Arrow)"
+                >
+                  <ChevronLeft size={15} />
+                </button>
 
-      {activeTabSub === 'saved' && (
-        <div className="space-y-3">
-          {savedPosts.length === 0 ? (
-            <div className="bg-white dark:bg-neutral-900 rounded-2xl p-8 text-center border border-neutral-200 dark:border-neutral-800 space-y-1.5">
-              <div className="w-9 h-9 mx-auto rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-400 flex items-center justify-center">
-                <Bookmark size={16} />
+                {/* Next Post */}
+                <button
+                  onClick={handleNextPost}
+                  disabled={selectedPostIndex >= currentTabPosts.length - 1}
+                  className="p-1.5 rounded-lg bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-700 dark:text-white border border-neutral-200 dark:border-white/30 disabled:opacity-30 disabled:pointer-events-none active:scale-95 transition-all cursor-pointer"
+                  title="Next Post (Right Arrow)"
+                >
+                  <ChevronRight size={15} />
+                </button>
+
+                {/* Close Modal */}
+                <button
+                  onClick={() => setSelectedPostForDetail(null)}
+                  className="p-1.5 rounded-lg bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-700 dark:text-white border border-neutral-200 dark:border-white/30 active:scale-95 transition-all cursor-pointer ml-1"
+                  title="Close (Esc)"
+                >
+                  <X size={15} />
+                </button>
               </div>
-              <p className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">No saved posts</p>
-              <p className="text-[11px] text-neutral-400 max-w-xs mx-auto">
-                {isSelf
-                  ? 'Tap the bookmark icon on any post to save it for easy access later.'
-                  : 'This user has no saved posts.'}
-              </p>
             </div>
-          ) : (
-            savedPosts.map(p => <PostCard key={p.id} post={p} />)
-          )}
+
+            {/* Post Details Content */}
+            <div className="overflow-y-auto p-2 sm:p-3">
+              <PostCard post={selectedPostForDetail} defaultShowComments={true} />
+            </div>
+          </div>
         </div>
       )}
 

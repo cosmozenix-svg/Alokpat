@@ -24,9 +24,10 @@ import { formatExactDateTime, formatRelativeTime, renderRichText } from '../util
 interface PostCardProps {
   post: Post;
   onTagClick?: (tag: string) => void;
+  defaultShowComments?: boolean;
 }
 
-export const PostCard: React.FC<PostCardProps> = ({ post, onTagClick }) => {
+export const PostCard: React.FC<PostCardProps> = ({ post, onTagClick, defaultShowComments = false }) => {
   const {
     currentUser,
     getUserById,
@@ -85,7 +86,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onTagClick }) => {
   }, [post.reactions, post.likes, getUserById]);
 
   // Local state
-  const [showComments, setShowComments] = useState(false);
+  const [showComments, setShowComments] = useState(defaultShowComments);
   const [commentText, setCommentText] = useState('');
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
@@ -479,7 +480,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onTagClick }) => {
                 ❤️
               </span>
               <span className="font-bold text-neutral-900 dark:text-neutral-100">
-                {loveCount} {loveCount === 1 ? 'love' : 'loves'}
+                {loveCount} {loveCount === 1 ? 'like' : 'likes'}
               </span>
             </button>
           ) : (
@@ -499,10 +500,10 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onTagClick }) => {
         </div>
       )}
 
-      {/* Action Buttons Bar: Exclusively Love React, Comments, Bookmark */}
+      {/* Action Buttons Bar: Exclusively Like React (Heart symbol), Comments, Bookmark */}
       <div className="px-3.5 py-2.5 flex items-center justify-between border-t border-neutral-100 dark:border-neutral-850">
         <div className="flex items-center gap-2">
-          {/* Dedicated Love Button */}
+          {/* Dedicated Like Button with Love Symbol */}
           <button
             onClick={handleToggleLove}
             className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-150 border shadow-2xs hover:shadow-xs active:scale-95 cursor-pointer select-none ${
@@ -510,7 +511,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onTagClick }) => {
                 ? 'bg-rose-50/95 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 border-rose-200/90 dark:border-rose-900/70 shadow-rose-500/10'
                 : 'bg-neutral-50 dark:bg-neutral-850 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-200 hover:text-neutral-900 dark:hover:text-white border-neutral-200/80 dark:border-neutral-800'
             }`}
-            title={isLiked ? 'Unlike' : 'Love this post (or double tap image)'}
+            title={isLiked ? 'Unlike' : 'Like this post (or double tap image)'}
           >
             <Heart
               size={17}
@@ -520,7 +521,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onTagClick }) => {
                   : 'text-neutral-600 dark:text-neutral-300'
               }`}
             />
-            <span>{isLiked ? 'Loved' : 'Love'}</span>
+            <span>{isLiked ? 'Liked' : 'Like'}</span>
             {loveCount > 0 && (
               <span
                 className={`ml-0.5 px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
@@ -706,7 +707,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onTagClick }) => {
               <div className="flex items-center gap-1.5">
                 <span className="text-rose-500">❤️</span>
                 <h3 className="font-bold text-sm text-neutral-900 dark:text-white">
-                  Loved by ({loversList.length})
+                  Liked by ({loversList.length})
                 </h3>
               </div>
               <button
@@ -721,7 +722,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onTagClick }) => {
             <div className="p-3 max-h-72 overflow-y-auto space-y-2 text-xs">
               {loversList.length === 0 ? (
                 <p className="text-center py-6 text-neutral-500 dark:text-neutral-400 font-medium">
-                  Be the first one to love this post!
+                  Be the first one to like this post!
                 </p>
               ) : (
                 loversList.map(u => (

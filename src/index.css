@@ -120,6 +120,66 @@ html.dark body, .dark body {
   color: inherit;
 }
 
+/* ==========================================================================
+   Dark Mode Buttons: Light Gray with White Border, Pure White Text
+   Prevents white-on-white preview blocking & maintains legible blending on hover
+   ========================================================================== */
+.dark button,
+.dark a[role="button"],
+.dark input[type="button"],
+.dark input[type="submit"] {
+  color: #ffffff;
+}
+
+/* Secondary, tab, standard, and text buttons in dark theme: light gray with white border */
+.dark button:not([class*="bg-purple"]):not([class*="bg-indigo"]):not([class*="bg-gradient"]):not([class*="bg-red-"]):not([class*="bg-rose-"]):not([class*="bg-emerald-"]):not([class*="bg-green-"]):not([class*="bg-blue-"]):not([class*="bg-amber-"]) {
+  background-color: #27272a !important;
+  border: 1px solid rgba(255, 255, 255, 0.28) !important;
+  color: #ffffff !important;
+}
+
+/* Ensure text inside dark buttons stays crystal-clear white */
+.dark button:not([class*="bg-purple"]):not([class*="bg-indigo"]):not([class*="bg-gradient"]):not([class*="bg-red-"]):not([class*="bg-rose-"]):not([class*="bg-emerald-"]):not([class*="bg-green-"]):not([class*="bg-blue-"]):not([class*="bg-amber-"]) span {
+  color: #ffffff !important;
+}
+
+/* Interactive states: Hover & Focus - smoothly elevates to lighter gray with brighter white border, NEVER turns white! */
+.dark button:not([class*="bg-purple"]):not([class*="bg-indigo"]):not([class*="bg-gradient"]):not([class*="bg-red-"]):not([class*="bg-rose-"]):not([class*="bg-emerald-"]):not([class*="bg-green-"]):not([class*="bg-blue-"]):not([class*="bg-amber-"]):hover,
+.dark button:not([class*="bg-purple"]):not([class*="bg-indigo"]):not([class*="bg-gradient"]):not([class*="bg-red-"]):not([class*="bg-rose-"]):not([class*="bg-emerald-"]):not([class*="bg-green-"]):not([class*="bg-blue-"]):not([class*="bg-amber-"]):focus-visible {
+  background-color: #3f3f46 !important;
+  border-color: rgba(255, 255, 255, 0.55) !important;
+  color: #ffffff !important;
+}
+
+/* Active / Pressed state: Elevated gray with crisp contrast */
+.dark button:not([class*="bg-purple"]):not([class*="bg-indigo"]):not([class*="bg-gradient"]):not([class*="bg-red-"]):not([class*="bg-rose-"]):not([class*="bg-emerald-"]):not([class*="bg-green-"]):not([class*="bg-blue-"]):not([class*="bg-amber-"]):active {
+  background-color: #52525b !important;
+  border-color: rgba(255, 255, 255, 0.75) !important;
+  color: #ffffff !important;
+}
+
+/* Guard against Tailwind hover:bg-white utility classes creating blinding white backgrounds in dark mode */
+.dark .hover\:bg-white:hover,
+.dark .hover\:bg-white\/50:hover,
+.dark .hover\:bg-white\/60:hover,
+.dark .hover\:bg-white\/80:hover,
+.dark .hover\:bg-neutral-100:hover,
+.dark .hover\:bg-neutral-200:hover,
+.dark .hover\:bg-neutral-50:hover {
+  background-color: #3f3f46 !important;
+  color: #ffffff !important;
+}
+
+/* Profile details stats box in dark mode: light gray with white border and white text */
+.dark .profile-stats-box {
+  background-color: #27272a !important;
+  border-color: rgba(255, 255, 255, 0.3) !important;
+}
+
+.dark .profile-stats-box p {
+  color: #ffffff !important;
+}
+
 /* Subtle clean scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
