@@ -384,12 +384,12 @@ export const SearchView: React.FC = () => {
               </div>
             </div>
           ) : (
-            <div className="bg-white dark:bg-neutral-900 rounded-2xl p-8 text-center border border-neutral-200 dark:border-neutral-800">
-              <SearchIcon size={24} className="mx-auto text-neutral-400 mb-2" />
-              <h3 className="font-semibold text-sm text-neutral-900 dark:text-neutral-100">
+            <div className="text-box empty-state-box bg-white dark:bg-neutral-700/80 rounded-2xl p-8 text-center border border-neutral-200 dark:border-white/30 shadow-xs">
+              <SearchIcon size={24} className="mx-auto text-neutral-400 dark:text-neutral-300 mb-2" />
+              <h3 className="font-semibold text-sm text-neutral-900 dark:text-white">
                 Search Alokpat
               </h3>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 max-w-xs mx-auto">
+              <p className="text-xs text-neutral-500 dark:text-neutral-200 mt-1 max-w-xs mx-auto">
                 Search users by their unique ID (e.g. 10001), @username, or search posts by keywords.
               </p>
             </div>
@@ -399,12 +399,12 @@ export const SearchView: React.FC = () => {
         /* Search Results Content */
         <div className="space-y-3">
           {totalResultsCount === 0 ? (
-            <div className="bg-white dark:bg-neutral-900 rounded-2xl p-8 text-center border border-neutral-200 dark:border-neutral-800">
-              <SearchIcon size={24} className="mx-auto text-neutral-400 mb-2" />
-              <h3 className="font-semibold text-sm text-neutral-900 dark:text-neutral-100">
+            <div className="text-box empty-state-box bg-white dark:bg-neutral-700/80 rounded-2xl p-8 text-center border border-neutral-200 dark:border-white/30 shadow-xs">
+              <SearchIcon size={24} className="mx-auto text-neutral-400 dark:text-neutral-300 mb-2" />
+              <h3 className="font-semibold text-sm text-neutral-900 dark:text-white">
                 No results found
               </h3>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+              <p className="text-xs text-neutral-500 dark:text-neutral-200 mt-1">
                 Try searching for a user ID (e.g. 10001), @username, or post keywords.
               </p>
             </div>

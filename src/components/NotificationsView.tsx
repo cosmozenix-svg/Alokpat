@@ -30,14 +30,14 @@ export const NotificationsView: React.FC = () => {
   if (!currentUser) {
     return (
       <div className="pb-24 pt-8 text-center">
-        <div className="bg-white dark:bg-neutral-900 rounded-2xl p-6 border border-neutral-200 dark:border-neutral-800 space-y-3 max-w-sm mx-auto">
+        <div className="text-box empty-state-box bg-white dark:bg-neutral-700/80 rounded-2xl p-6 border border-neutral-200 dark:border-white/30 space-y-3 max-w-sm mx-auto shadow-xs">
           <div className="w-12 h-12 mx-auto rounded-xl bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 flex items-center justify-center">
             <Bell size={22} />
           </div>
-          <h3 className="font-semibold text-sm text-neutral-900 dark:text-neutral-100">
+          <h3 className="font-semibold text-sm text-neutral-900 dark:text-white">
             Sign in for notifications
           </h3>
-          <p className="text-xs text-neutral-500 dark:text-neutral-400">
+          <p className="text-xs text-neutral-500 dark:text-neutral-200">
             Keep track of reactions, comments, followers, and official notices.
           </p>
           <div className="flex items-center justify-center gap-2 pt-2">
@@ -137,10 +137,10 @@ export const NotificationsView: React.FC = () => {
 
       {/* Notifications List */}
       {filteredNotifications.length === 0 ? (
-        <div className="bg-white dark:bg-neutral-900 rounded-2xl p-8 text-center border border-neutral-200 dark:border-neutral-800">
+        <div className="text-box empty-state-box bg-white dark:bg-neutral-700/80 rounded-2xl p-8 text-center border border-neutral-200 dark:border-white/30 shadow-xs">
           <Bell size={24} className="mx-auto text-neutral-400 mb-2" />
-          <p className="text-xs font-semibold text-neutral-800 dark:text-neutral-200">No notifications yet</p>
-          <p className="text-[11px] text-neutral-400 mt-0.5">You're all caught up!</p>
+          <p className="text-xs font-semibold text-neutral-800 dark:text-white">No notifications yet</p>
+          <p className="text-[11px] text-neutral-400 dark:text-neutral-200 mt-0.5">You're all caught up!</p>
         </div>
       ) : (
         <div className="space-y-2">

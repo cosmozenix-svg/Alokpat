@@ -35,14 +35,14 @@ export const AddPostView: React.FC = () => {
   if (!currentUser) {
     return (
       <div className="pb-24 pt-8 text-center">
-        <div className="bg-white dark:bg-neutral-900 rounded-2xl p-6 border border-neutral-200 dark:border-neutral-800 space-y-3 max-w-sm mx-auto">
+        <div className="text-box empty-state-box bg-white dark:bg-neutral-700/80 rounded-2xl p-6 border border-neutral-200 dark:border-white/30 space-y-3 max-w-sm mx-auto shadow-xs">
           <div className="w-12 h-12 mx-auto rounded-xl bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 flex items-center justify-center">
             <Plus size={22} />
           </div>
-          <h3 className="font-semibold text-sm text-neutral-900 dark:text-neutral-100">
+          <h3 className="font-semibold text-sm text-neutral-900 dark:text-white">
             Sign in to share a post
           </h3>
-          <p className="text-xs text-neutral-500 dark:text-neutral-400">
+          <p className="text-xs text-neutral-500 dark:text-neutral-200">
             You need an account to publish text, photos, and keyword tags on Alokpat.
           </p>
           <div className="flex items-center justify-center gap-2 pt-2">

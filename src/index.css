@@ -106,9 +106,57 @@ html.dark body, .dark body {
   color-scheme: dark;
 }
 
+/* ==========================================================================
+   Dark Mode Text Boxes & Form Inputs: Light Gray with White Border
+   Applies to every text box (inputs, textareas, selects) & text message boxes
+   ========================================================================== */
+.dark input[type="text"],
+.dark input[type="search"],
+.dark input[type="email"],
+.dark input[type="password"],
+.dark input[type="url"],
+.dark input[type="tel"],
+.dark input[type="number"],
+.dark input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="submit"]):not([type="button"]):not([type="color"]):not([type="range"]):not([type="hidden"]),
+.dark textarea,
+.dark select {
+  background-color: #3f3f46 !important;
+  border: 1px solid rgba(255, 255, 255, 0.4) !important;
+  color: #ffffff !important;
+}
+
+.dark input[type="text"]::placeholder,
+.dark input[type="search"]::placeholder,
+.dark input[type="email"]::placeholder,
+.dark input[type="password"]::placeholder,
+.dark input[type="url"]::placeholder,
+.dark input[type="tel"]::placeholder,
+.dark input[type="number"]::placeholder,
+.dark textarea::placeholder {
+  color: rgba(255, 255, 255, 0.7) !important;
+  opacity: 1 !important;
+}
+
+.dark input[type="text"]:focus,
+.dark input[type="search"]:focus,
+.dark input[type="email"]:focus,
+.dark input[type="password"]:focus,
+.dark input[type="url"]:focus,
+.dark input[type="tel"]:focus,
+.dark input[type="number"]:focus,
+.dark input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="submit"]):not([type="button"]):not([type="color"]):not([type="range"]):not([type="hidden"]):focus,
+.dark textarea:focus,
+.dark select:focus {
+  background-color: #52525b !important;
+  border: 1px solid rgba(255, 255, 255, 0.85) !important;
+  color: #ffffff !important;
+  outline: none !important;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.4) !important;
+}
+
 .dark ::placeholder, html.dark ::placeholder {
-  color: #9ca3af !important;
-  opacity: 0.85;
+  color: rgba(255, 255, 255, 0.7) !important;
+  opacity: 1;
 }
 
 /* Enhanced default contrast hierarchy for dark mode elements */
@@ -180,6 +228,37 @@ html.dark body, .dark body {
 .dark .profile-stats-box span,
 .dark .profile-stats-box div,
 .dark .profile-stats-box * {
+  color: #ffffff !important;
+}
+
+/* Welcome banner box in dark mode: light gray with white border and white text */
+.dark .welcome-banner-box {
+  background-color: #3f3f46 !important;
+  border-color: rgba(255, 255, 255, 0.4) !important;
+}
+
+.dark .welcome-banner-box h3,
+.dark .welcome-banner-box p,
+.dark .welcome-banner-box span {
+  color: #ffffff !important;
+}
+
+/* Informational text boxes, comment bubble boxes, callouts, and notice boxes in dark mode */
+.dark .text-box,
+.dark .comment-bubble-box,
+.dark .info-callout-box,
+.dark .notice-box,
+.dark .empty-state-box {
+  background-color: #3f3f46 !important;
+  border: 1px solid rgba(255, 255, 255, 0.4) !important;
+  color: #ffffff !important;
+}
+
+.dark .text-box *,
+.dark .comment-bubble-box *,
+.dark .info-callout-box *,
+.dark .notice-box *,
+.dark .empty-state-box * {
   color: #ffffff !important;
 }
 

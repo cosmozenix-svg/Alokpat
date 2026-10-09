@@ -81,7 +81,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ userId }) => {
   if (!user) {
     return (
       <div className="pb-24 pt-8 text-center">
-        <div className="bg-white dark:bg-neutral-900 rounded-2xl p-6 border border-neutral-200 dark:border-neutral-800 space-y-3 max-w-sm mx-auto">
+        <div className="text-box empty-state-box bg-white dark:bg-neutral-700/80 rounded-2xl p-6 border border-neutral-200 dark:border-white/30 space-y-3 max-w-sm mx-auto shadow-xs">
           <div className="w-12 h-12 mx-auto rounded-xl bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 flex items-center justify-center">
             <UserIcon size={22} />
           </div>

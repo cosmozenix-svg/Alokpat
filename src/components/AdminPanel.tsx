@@ -86,6 +86,7 @@ export const AdminPanel: React.FC = () => {
     adminResolveReport,
     adminDismissReport,
     adminUpdateUser,
+    adminDeleteUser,
     openUserProfile,
   } = useApp();
 
@@ -143,6 +144,12 @@ export const AdminPanel: React.FC = () => {
   const [resetPassUser, setResetPassUser] = useState<User | null>(null);
   const [newPasswordVal, setNewPasswordVal] = useState('');
   const [resetPassSuccess, setResetPassSuccess] = useState(false);
+
+  // DELETE ACCOUNT MODAL STATE
+  const [deletingUser, setDeletingUser] = useState<User | null>(null);
+  const [deletePurgeContent, setDeletePurgeContent] = useState<boolean>(true);
+  const [deleteConfirmText, setDeleteConfirmText] = useState<string>('');
+  const [deleteSuccessMessage, setDeleteSuccessMessage] = useState<string>('');
 
   // Form states for Verification Badge Customization
   const [badgeTierChoice, setBadgeTierChoice] = useState<BadgeVariant>('blue');
@@ -381,6 +388,34 @@ export const AdminPanel: React.FC = () => {
       setBadgeSuccessMessage('');
       setActionModalType(null);
     }, 800);
+  };
+
+  // Handle Account Deletion
+  const handleConfirmDeleteUser = () => {
+    if (!deletingUser) return;
+    const target = deletingUser;
+    const result = adminDeleteUser(target.id, deletePurgeContent);
+
+    addAuditLog(
+      'Deleted User Account',
+      `Permanently deleted @${target.username} (ID: #${target.id}) with purgeContent=${deletePurgeContent}`,
+      'delete',
+      `@${target.username}`
+    );
+
+    if (detailedUser && Number(detailedUser.id) === Number(target.id)) {
+      setDetailedUser(null);
+    }
+    if (editingUser && Number(editingUser.id) === Number(target.id)) {
+      setEditingUser(null);
+    }
+
+    setDeleteSuccessMessage(result.message);
+    setTimeout(() => {
+      setDeleteSuccessMessage('');
+      setDeletingUser(null);
+      setDeleteConfirmText('');
+    }, 1200);
   };
 
   // Notice & Warning Handlers
@@ -705,7 +740,7 @@ export const AdminPanel: React.FC = () => {
                 />
               </div>
 
-              <div className="p-2 bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg text-[11px] text-neutral-600 dark:text-neutral-300">
+              <div className="notice-box p-2 bg-neutral-100 dark:bg-neutral-700/80 border border-neutral-200 dark:border-white/30 rounded-lg text-[11px] text-neutral-600 dark:text-white">
                 Default: <strong>Username: admin</strong> | <strong>Password: admin123</strong>
               </div>
 
@@ -1238,6 +1273,20 @@ export const AdminPanel: React.FC = () => {
                                 }`}
                               >
                                 {user.isBanned ? 'Unban' : 'Ban'}
+                              </button>
+
+                              {/* Delete Account Button */}
+                              <button
+                                onClick={() => {
+                                  setDeletingUser(user);
+                                  setDeleteConfirmText('');
+                                  setDeletePurgeContent(true);
+                                }}
+                                className="px-2 py-1.5 rounded-lg font-semibold text-xs bg-red-100 hover:bg-red-200 text-red-700 dark:bg-red-950/70 dark:hover:bg-red-900/80 dark:text-red-300 border border-red-300 dark:border-red-800 flex items-center gap-1 cursor-pointer transition-colors"
+                                title="Permanently delete user account"
+                              >
+                                <Trash2 size={12} />
+                                <span>Delete</span>
                               </button>
                             </div>
                           </div>
@@ -1857,6 +1906,19 @@ export const AdminPanel: React.FC = () => {
                 >
                   <Ban size={12} />
                   <span>{detailedUser.isBanned ? 'Unban Account' : 'Ban Account'}</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setDeletingUser(detailedUser);
+                    setDeleteConfirmText('');
+                    setDeletePurgeContent(true);
+                  }}
+                  className="px-2.5 py-1 rounded-lg font-semibold bg-red-950/80 hover:bg-red-900 text-red-200 border border-red-800 flex items-center gap-1 cursor-pointer transition-colors"
+                  title="Permanently delete this account from database"
+                >
+                  <Trash2 size={12} />
+                  <span>Delete Account</span>
                 </button>
               </div>
             </div>
@@ -2662,8 +2724,23 @@ export const AdminPanel: React.FC = () => {
               <div className="flex items-center gap-2 pt-2">
                 <button
                   type="button"
+                  onClick={() => {
+                    const u = editingUser;
+                    setEditingUser(null);
+                    setDeletingUser(u);
+                    setDeleteConfirmText('');
+                    setDeletePurgeContent(true);
+                  }}
+                  className="py-2.5 px-3 rounded-xl border border-red-200 dark:border-red-900/80 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 text-xs font-semibold flex items-center gap-1 cursor-pointer transition-colors"
+                  title="Delete this user account"
+                >
+                  <Trash2 size={13} />
+                  <span>Delete</span>
+                </button>
+                <button
+                  type="button"
                   onClick={() => setEditingUser(null)}
-                  className="py-2.5 px-4 rounded-xl border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer"
+                  className="py-2.5 px-3.5 rounded-xl border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -3042,6 +3119,139 @@ export const AdminPanel: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 🗑️ ACCOUNT DELETION CONFIRMATION MODAL */}
+      {/* ========================================================================= */}
+      {deletingUser && (
+        <div className="fixed inset-0 z-70 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-neutral-900 rounded-3xl p-5 max-w-md w-full border border-red-300 dark:border-red-900/70 space-y-4 shadow-2xl text-xs">
+            <div className="flex items-center justify-between pb-2 border-b border-neutral-100 dark:border-neutral-800">
+              <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
+                <div className="p-2 rounded-xl bg-red-100 dark:bg-red-950/80">
+                  <Trash2 size={18} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-neutral-900 dark:text-white">
+                    Delete User Account
+                  </h3>
+                  <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                    Permanent administrative removal
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setDeletingUser(null);
+                  setDeleteSuccessMessage('');
+                  setDeleteConfirmText('');
+                }}
+                className="p-1 rounded-lg text-neutral-400 hover:text-neutral-600 dark:hover:text-white cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {deleteSuccessMessage ? (
+              <div className="p-4 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-300 dark:border-emerald-800 rounded-2xl text-center space-y-2">
+                <CheckCircle2 size={28} className="mx-auto text-emerald-500" />
+                <p className="font-bold text-emerald-800 dark:text-emerald-200 text-xs">
+                  {deleteSuccessMessage}
+                </p>
+              </div>
+            ) : (
+              <>
+                {/* Target User Summary Card */}
+                <div className="notice-box p-3 bg-neutral-50 dark:bg-neutral-800/70 border border-neutral-200 dark:border-white/20 rounded-2xl flex items-center gap-3">
+                  <UserAvatar user={deletingUser} size="md" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1 font-bold text-neutral-900 dark:text-white truncate">
+                      <span>{deletingUser.name}</span>
+                      {deletingUser.isVerified && <VerifiedBadge size="xs" user={deletingUser} interactive={false} />}
+                    </div>
+                    <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                      @{deletingUser.username} • Account ID: <span className="font-mono text-purple-600 dark:text-purple-300">#{deletingUser.id}</span>
+                    </p>
+                    <p className="text-[10px] text-neutral-400 truncate">
+                      {deletingUser.email || 'No email registered'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Warning Banner */}
+                <div className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 rounded-2xl flex items-start gap-2.5 text-red-700 dark:text-red-300">
+                  <AlertTriangle size={16} className="flex-shrink-0 mt-0.5 text-red-500" />
+                  <div className="space-y-1">
+                    <p className="font-bold text-[11px]">Warning: This action is permanent!</p>
+                    <p className="text-[11px] text-red-600 dark:text-red-300/90 leading-relaxed">
+                      The user document will be deleted from the database and storage. The user will be immediately logged out and will no longer be able to sign in.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Purge Posts & Comments Checkbox */}
+                <label className="flex items-start gap-2.5 p-3 rounded-2xl bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200 dark:border-white/20 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={deletePurgeContent}
+                    onChange={e => setDeletePurgeContent(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 rounded text-red-600 focus:ring-red-500"
+                  />
+                  <div>
+                    <p className="font-semibold text-neutral-900 dark:text-white">
+                      Purge all user posts & comments
+                    </p>
+                    <p className="text-[10px] text-neutral-500 dark:text-neutral-400 mt-0.5">
+                      Also remove all feed publications, attached photos, and discussion comments authored by this user.
+                    </p>
+                  </div>
+                </label>
+
+                {/* Safety Confirmation Input */}
+                <div>
+                  <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
+                    To confirm, type <span className="font-mono text-red-600 dark:text-red-400 font-bold">DELETE</span> or <span className="font-mono text-purple-600 dark:text-purple-400 font-bold">@{deletingUser.username}</span> below:
+                  </label>
+                  <input
+                    type="text"
+                    placeholder={`DELETE or @${deletingUser.username}`}
+                    value={deleteConfirmText}
+                    onChange={e => setDeleteConfirmText(e.target.value)}
+                    className="w-full p-2.5 bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl text-neutral-900 dark:text-white font-mono text-xs focus:outline-none focus:ring-1 focus:ring-red-500"
+                  />
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex items-center gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDeletingUser(null);
+                      setDeleteConfirmText('');
+                    }}
+                    className="py-2.5 px-4 rounded-xl border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 font-medium cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={
+                      deleteConfirmText.trim().toUpperCase() !== 'DELETE' &&
+                      deleteConfirmText.trim().toLowerCase() !== `@${deletingUser.username.toLowerCase()}` &&
+                      deleteConfirmText.trim().toLowerCase() !== deletingUser.username.toLowerCase()
+                    }
+                    onClick={handleConfirmDeleteUser}
+                    className="flex-1 py-2.5 px-4 bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold rounded-xl flex items-center justify-center gap-1.5 shadow-md shadow-red-600/30 active:scale-95 transition-all cursor-pointer"
+                  >
+                    <Trash2 size={13} />
+                    <span>Permanently Delete Account</span>
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

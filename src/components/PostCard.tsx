@@ -594,7 +594,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onTagClick, defaultSho
                     placeholder="Add a comment..."
                     value={commentText}
                     onChange={e => setCommentText(e.target.value)}
-                    className="w-full pl-3 pr-9 py-2 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-750 rounded-xl text-xs text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-500 dark:placeholder:text-neutral-400 focus:outline-none focus:ring-1 focus:ring-purple-600 transition-all shadow-2xs font-normal"
+                    className="w-full pl-3 pr-9 py-2 bg-white dark:bg-neutral-700 border border-neutral-200 dark:border-white/40 rounded-xl text-xs text-neutral-900 dark:text-white placeholder:text-neutral-500 dark:placeholder:text-neutral-300 focus:outline-none focus:ring-1 focus:ring-purple-600 transition-all shadow-2xs font-normal"
                   />
                   <button
                     type="submit"
@@ -627,10 +627,10 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onTagClick, defaultSho
                           size="xs"
                           onClick={() => cAuthor && openUserProfile(cAuthor.id)}
                         />
-                        <div className="flex-1 min-w-0 bg-white dark:bg-neutral-900 p-2.5 rounded-xl border border-neutral-200/70 dark:border-neutral-800 shadow-2xs">
+                        <div className="comment-bubble-box flex-1 min-w-0 bg-white dark:bg-neutral-700/80 p-2.5 rounded-xl border border-neutral-200/70 dark:border-white/30 shadow-2xs">
                           <div className="flex items-center justify-between">
                             <div
-                              className="flex items-center gap-1 font-bold text-xs text-neutral-900 dark:text-neutral-100 cursor-pointer hover:underline"
+                              className="flex items-center gap-1 font-bold text-xs text-neutral-900 dark:text-white cursor-pointer hover:underline"
                               onClick={() => cAuthor && openUserProfile(cAuthor.id)}
                             >
                               <span>{cAuthor?.name || 'User'}</span>

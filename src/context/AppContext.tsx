@@ -6,6 +6,7 @@ import {
   subscribeToDatabase,
   seedFirestoreIfNeeded,
   syncUserToDb,
+  deleteUserFromDb,
   syncPostToDb,
   deletePostFromDb,
   syncCommentToDb,
@@ -99,6 +100,7 @@ interface AppContextType {
   adminDeletePost: (postId: string) => void;
   adminDeleteComment: (commentId: string) => void;
   adminUpdateUser: (userId: number, updates: Partial<User>) => void;
+  adminDeleteUser: (userId: number, purgeContent?: boolean) => { success: boolean; message: string };
   resetAllData: () => void;
 }
 
@@ -1287,6 +1289,95 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
+  const adminDeleteUser = (userId: number, purgeContent: boolean = true): { success: boolean; message: string } => {
+    const targetUserId = Number(userId);
+    const targetUser = users.find(u => Number(u.id) === targetUserId);
+    if (!targetUser) {
+      return { success: false, message: 'User not found in system.' };
+    }
+
+    // 1. Remove user from Firestore database
+    deleteUserFromDb(targetUserId).catch(() => {});
+
+    // 2. Remove user from state and local storage, and cleanup followers/following
+    setUsers(prev => {
+      const updatedList = prev
+        .filter(u => Number(u.id) !== targetUserId)
+        .map(u => ({
+          ...u,
+          followers: (u.followers || []).filter(fid => Number(fid) !== targetUserId),
+          following: (u.following || []).filter(fid => Number(fid) !== targetUserId),
+        }));
+      safeSetStorage('alokpat_real_users', updatedList);
+      return updatedList;
+    });
+
+    // 3. Purge user posts and comments if purgeContent is enabled
+    if (purgeContent) {
+      const userPostIds = new Set(
+        posts.filter(p => Number(p.userId) === targetUserId).map(p => p.id)
+      );
+
+      userPostIds.forEach(pId => {
+        deletePostFromDb(pId).catch(() => {});
+      });
+
+      setPosts(prev => {
+        const remainingPosts = prev.filter(p => Number(p.userId) !== targetUserId);
+        safeSetStorage('alokpat_real_posts', remainingPosts);
+        return remainingPosts;
+      });
+
+      const commentsToDelete = comments.filter(
+        c => Number(c.userId) === targetUserId || userPostIds.has(c.postId)
+      );
+
+      commentsToDelete.forEach(c => {
+        deleteCommentFromDb(c.id).catch(() => {});
+      });
+
+      setComments(prev => {
+        const remainingComments = prev.filter(
+          c => Number(c.userId) !== targetUserId && !userPostIds.has(c.postId)
+        );
+        safeSetStorage('alokpat_real_comments', remainingComments);
+        return remainingComments;
+      });
+    }
+
+    // 4. Remove notifications involving this user
+    setNotifications(prev => {
+      const remainingNotifs = prev.filter(n => Number(n.userId) !== targetUserId);
+      safeSetStorage('alokpat_real_notifications', remainingNotifs);
+      return remainingNotifs;
+    });
+
+    // 5. Remove reports involving this user
+    setReports(prev => {
+      const remainingReports = prev.filter(
+        r => Number(r.reportedUserId) !== targetUserId && Number(r.reporterId) !== targetUserId
+      );
+      safeSetStorage('alokpat_real_reports', remainingReports);
+      return remainingReports;
+    });
+
+    // 6. If currently viewing deleted user's profile, reset
+    if (Number(viewingUserId) === targetUserId) {
+      setViewingUserId(null);
+    }
+
+    // 7. If deleted user is current user, logout
+    if (Number(currentUserId) === targetUserId) {
+      setCurrentUserId(null);
+      safeSetStorage('alokpat_real_current_user_id', null);
+    }
+
+    return {
+      success: true,
+      message: `User account @${targetUser.username} (#${targetUserId}) successfully deleted.`,
+    };
+  };
+
   const resetAllData = () => {
     localStorage.removeItem('alokpat_real_users');
     localStorage.removeItem('alokpat_real_posts');
@@ -1371,6 +1462,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         adminDeletePost,
         adminDeleteComment,
         adminUpdateUser,
+        adminDeleteUser,
         resetAllData,
       }}
     >

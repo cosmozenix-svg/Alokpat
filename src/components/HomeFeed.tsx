@@ -219,11 +219,11 @@ export const HomeFeed: React.FC = () => {
 
       {/* Welcome Banner if no user is signed in */}
       {!currentUser && (
-        <div className="bg-neutral-50 dark:bg-neutral-850 rounded-2xl p-4 mb-4 border border-neutral-200 dark:border-neutral-800">
-          <h3 className="text-sm font-bold text-neutral-900 dark:text-neutral-50">
+        <div className="welcome-banner-box bg-neutral-100 dark:bg-neutral-700 rounded-2xl p-4 mb-4 border border-neutral-200 dark:border-white/30 shadow-xs">
+          <h3 className="text-sm font-bold text-neutral-900 dark:text-white">
             Welcome to Alokpat
           </h3>
-          <p className="text-xs text-neutral-600 dark:text-neutral-300 mt-1 leading-relaxed">
+          <p className="text-xs text-neutral-700 dark:text-neutral-100 mt-1 leading-relaxed">
             Create an account or sign in to share posts, follow members, and discover keywords.
           </p>
           <div className="flex items-center gap-2 mt-3">
@@ -241,7 +241,7 @@ export const HomeFeed: React.FC = () => {
                 setAuthMode('login');
                 setIsAuthModalOpen(true);
               }}
-              className="px-4 py-2 bg-white dark:bg-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-750 text-neutral-900 dark:text-neutral-100 font-semibold rounded-xl text-xs active:scale-[0.98] transition-all cursor-pointer border border-neutral-200 dark:border-neutral-700 shadow-2xs"
+              className="px-4 py-2 bg-white dark:bg-neutral-600 hover:bg-neutral-100 dark:hover:bg-neutral-500 text-neutral-900 dark:text-white font-semibold rounded-xl text-xs active:scale-[0.98] transition-all cursor-pointer border border-neutral-200 dark:border-white/40 shadow-2xs"
             >
               Log In
             </button>
@@ -300,14 +300,14 @@ export const HomeFeed: React.FC = () => {
 
       {/* Feed Content */}
       {sortedPosts.length === 0 ? (
-        <div className="bg-white dark:bg-neutral-900 rounded-2xl p-8 text-center border border-neutral-200 dark:border-neutral-800">
-          <div className="w-12 h-12 mx-auto rounded-xl bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 flex items-center justify-center mb-3">
+        <div className="text-box empty-state-box bg-white dark:bg-neutral-700/80 rounded-2xl p-8 text-center border border-neutral-200 dark:border-white/30 shadow-xs">
+          <div className="w-12 h-12 mx-auto rounded-xl bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-300 flex items-center justify-center mb-3">
             <Layers size={22} />
           </div>
-          <h3 className="font-bold text-sm text-neutral-900 dark:text-neutral-100">
+          <h3 className="font-bold text-sm text-neutral-900 dark:text-white">
             No posts yet
           </h3>
-          <p className="text-xs text-neutral-600 dark:text-neutral-300 mt-1 max-w-xs mx-auto leading-relaxed">
+          <p className="text-xs text-neutral-600 dark:text-neutral-100 mt-1 max-w-xs mx-auto leading-relaxed">
             {currentUser
               ? 'Be the first to share an update, thoughts, or photos.'
               : 'Create an account to start sharing posts with the community.'}

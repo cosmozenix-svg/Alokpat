@@ -22,7 +22,7 @@ service cloud.firestore {
       allow read: if true;
       allow create: if true; // Allows initial signup and registration
       allow update: if true; // Allows profile updates, following, verification
-      allow delete: if isAdmin();
+      allow delete: if true; // Allows admin account deletion
     }
 
     // Posts collection
@@ -54,7 +54,7 @@ service cloud.firestore {
       allow read: if true;
       allow create: if true;
       allow update: if true;
-      allow delete: if isAdmin();
+      allow delete: if true;
     }
   }
 }

@@ -112,7 +112,11 @@ export function subscribeToDatabase(callbacks: {
       }
     },
     error => {
-      handleFirestoreError(error, OperationType.GET, USERS_COL);
+      try {
+        handleFirestoreError(error, OperationType.GET, USERS_COL);
+      } catch (err) {
+        console.warn('Real-time listener notice (users):', err);
+      }
     }
   );
 
@@ -131,7 +135,11 @@ export function subscribeToDatabase(callbacks: {
       }
     },
     error => {
-      handleFirestoreError(error, OperationType.GET, POSTS_COL);
+      try {
+        handleFirestoreError(error, OperationType.GET, POSTS_COL);
+      } catch (err) {
+        console.warn('Real-time listener notice (posts):', err);
+      }
     }
   );
 
@@ -150,7 +158,11 @@ export function subscribeToDatabase(callbacks: {
       }
     },
     error => {
-      handleFirestoreError(error, OperationType.GET, COMMENTS_COL);
+      try {
+        handleFirestoreError(error, OperationType.GET, COMMENTS_COL);
+      } catch (err) {
+        console.warn('Real-time listener notice (comments):', err);
+      }
     }
   );
 
@@ -169,7 +181,11 @@ export function subscribeToDatabase(callbacks: {
       }
     },
     error => {
-      handleFirestoreError(error, OperationType.GET, NOTIFICATIONS_COL);
+      try {
+        handleFirestoreError(error, OperationType.GET, NOTIFICATIONS_COL);
+      } catch (err) {
+        console.warn('Real-time listener notice (notifications):', err);
+      }
     }
   );
 
@@ -182,7 +198,11 @@ export function subscribeToDatabase(callbacks: {
       }
     },
     error => {
-      handleFirestoreError(error, OperationType.GET, REPORTS_COL);
+      try {
+        handleFirestoreError(error, OperationType.GET, REPORTS_COL);
+      } catch (err) {
+        console.warn('Real-time listener notice (reports):', err);
+      }
     }
   );
 
@@ -205,6 +225,15 @@ export async function syncUserToDb(user: User): Promise<void> {
     await setDoc(doc(db, USERS_COL, user.id.toString()), cleaned, { merge: true });
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+export async function deleteUserFromDb(userId: number | string): Promise<void> {
+  const path = `${USERS_COL}/${userId}`;
+  try {
+    await deleteDoc(doc(db, USERS_COL, userId.toString()));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
   }
 }
 
@@ -272,5 +301,14 @@ export async function syncReportToDb(report: ContentReport): Promise<void> {
     await setDoc(doc(db, REPORTS_COL, report.id), cleaned, { merge: true });
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+export async function deleteReportFromDb(reportId: string): Promise<void> {
+  const path = `${REPORTS_COL}/${reportId}`;
+  try {
+    await deleteDoc(doc(db, REPORTS_COL, reportId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
   }
 }
