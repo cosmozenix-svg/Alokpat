@@ -172,11 +172,14 @@ html.dark body, .dark body {
 
 /* Profile details stats box in dark mode: light gray with white border and white text */
 .dark .profile-stats-box {
-  background-color: #27272a !important;
-  border-color: rgba(255, 255, 255, 0.3) !important;
+  background-color: #3f3f46 !important;
+  border-color: rgba(255, 255, 255, 0.45) !important;
 }
 
-.dark .profile-stats-box p {
+.dark .profile-stats-box p,
+.dark .profile-stats-box span,
+.dark .profile-stats-box div,
+.dark .profile-stats-box * {
   color: #ffffff !important;
 }
 

@@ -102,6 +102,39 @@ interface AppContextType {
   resetAllData: () => void;
 }
 
+const isUrlAdminPath = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  try {
+    const p = window.location.pathname.toLowerCase().replace(/\/+$/, '');
+    const h = window.location.hash.toLowerCase().replace(/\/+$/, '');
+    const s = window.location.search.toLowerCase();
+
+    // Check session storage marker if redirected from /admin/index.html
+    const stored = sessionStorage.getItem('alokpat_open_admin');
+    if (stored === 'true') {
+      sessionStorage.removeItem('alokpat_open_admin');
+      return true;
+    }
+
+    return (
+      p === '/admin' ||
+      p.endsWith('/admin') ||
+      p.startsWith('/admin/') ||
+      p.includes('/admin') ||
+      h === '#admin' ||
+      h === '#/admin' ||
+      h.startsWith('#admin') ||
+      h.startsWith('#/admin') ||
+      s.includes('admin=true') ||
+      s.includes('view=admin') ||
+      s === '?admin' ||
+      s.startsWith('?admin&')
+    );
+  } catch {
+    return false;
+  }
+};
+
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -142,7 +175,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return null;
   });
 
-  const currentUser = users.find(u => u.id === currentUserId) || null;
+  const currentUser = users.find(u => Number(u.id) === Number(currentUserId)) || null;
 
   const [posts, setPosts] = useState<Post[]>(() => {
     return safeGetStorage<Post[]>('alokpat_real_posts', INITIAL_POSTS);
@@ -166,12 +199,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
   const [adminUsername, setAdminUsername] = useState<string>('admin');
   const [isAdminPanelOpen, setIsAdminPanelOpenState] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      const p = window.location.pathname.toLowerCase();
-      const h = window.location.hash.toLowerCase();
-      return p.endsWith('/admin') || p === '/admin' || h === '#/admin' || h === '#admin';
-    }
-    return false;
+    return isUrlAdminPath();
   });
 
   // Hydrate from IndexedDB on initial mount if available
@@ -249,33 +277,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const setIsAdminPanelOpen = (open: boolean) => {
     setIsAdminPanelOpenState(open);
     if (typeof window !== 'undefined') {
-      const p = window.location.pathname.toLowerCase();
-      const h = window.location.hash.toLowerCase();
-      if (open) {
-        if (!p.endsWith('/admin') && p !== '/admin' && h !== '#/admin' && h !== '#admin') {
-          window.history.pushState(null, '', '/admin');
+      try {
+        const p = window.location.pathname.toLowerCase().replace(/\/+$/, '');
+        const h = window.location.hash.toLowerCase().replace(/\/+$/, '');
+        if (open) {
+          if (!isUrlAdminPath()) {
+            window.history.pushState(null, '', '/admin');
+          }
+        } else {
+          if (p === '/admin' || p.endsWith('/admin')) {
+            window.history.pushState(null, '', '/');
+          }
+          if (h === '#admin' || h === '#/admin') {
+            window.location.hash = '';
+          }
         }
-      } else {
-        if (p.endsWith('/admin') || p === '/admin') {
-          window.history.pushState(null, '', '/');
-        }
-        if (h === '#/admin' || h === '#admin') {
-          window.location.hash = '';
-        }
+      } catch (e) {
+        // Safe fallback in restricted environments
       }
     }
   };
 
   useEffect(() => {
     const handleUrlChange = () => {
-      const p = window.location.pathname.toLowerCase();
-      const h = window.location.hash.toLowerCase();
-      if (p.endsWith('/admin') || p === '/admin' || h === '#/admin' || h === '#admin') {
+      if (isUrlAdminPath()) {
         setIsAdminPanelOpenState(true);
       } else {
         setIsAdminPanelOpenState(false);
       }
     };
+
+    // Immediate check on mount
+    if (isUrlAdminPath()) {
+      setIsAdminPanelOpenState(true);
+    }
 
     window.addEventListener('popstate', handleUrlChange);
     window.addEventListener('hashchange', handleUrlChange);
@@ -435,18 +470,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const switchUser = (userId: number) => {
-    const target = users.find(u => u.id === userId);
+    const target = users.find(u => Number(u.id) === Number(userId));
     if (target) {
       if (target.isBanned) {
         alert(`Cannot switch to banned account #${target.id} (@${target.username})`);
         return;
       }
-      setCurrentUserId(target.id);
+      setCurrentUserId(Number(target.id));
     }
   };
 
-  const getUserById = (id: number) => {
-    return users.find(u => u.id === id);
+  const getUserById = (id: number | string | undefined | null) => {
+    if (id === undefined || id === null) return undefined;
+    const numId = Number(id);
+    return users.find(u => Number(u.id) === numId);
   };
 
   const openUserProfile = (userId: number) => {
@@ -1000,9 +1037,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     shape?: BadgeShape,
     customLabel?: string
   ) => {
-    setUsers(prev =>
-      prev.map(u => {
-        if (u.id === userId) {
+    const targetUserId = Number(userId);
+    setUsers(prev => {
+      const updatedList = prev.map(u => {
+        if (Number(u.id) === targetUserId) {
           const newStatus = !u.isVerified;
           const status: VerificationStatus = newStatus ? 'verified' : 'unverified';
           const resolvedVariant: BadgeVariant =
@@ -1013,7 +1051,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
           const notif: AppNotification = {
             id: `notif-verify-${Date.now()}`,
-            userId: u.id,
+            userId: targetUserId,
             type: 'admin_notice',
             title: newStatus ? 'Account Verified' : 'Verification Status Updated',
             message: newStatus
@@ -1030,18 +1068,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             ...u,
             isVerified: newStatus,
             verificationStatus: status,
-            verifiedAt: newStatus ? new Date().toISOString() : undefined,
+            verifiedAt: newStatus ? (u.verifiedAt || new Date().toISOString()) : undefined,
             badgeVariant: newStatus ? resolvedVariant : u.badgeVariant,
             badgeShape: newStatus ? resolvedShape : u.badgeShape,
             customBadgeLabel:
-              newStatus && customLabel !== undefined ? customLabel : u.customBadgeLabel,
+              newStatus && customLabel !== undefined ? (customLabel.trim() || undefined) : u.customBadgeLabel,
           };
           syncUserToDb(updatedUser).catch(() => {});
           return updatedUser;
         }
         return u;
-      })
-    );
+      });
+      safeSetStorage('alokpat_real_users', updatedList);
+      return updatedList;
+    });
   };
 
   const adminUpdateVerificationBadge = (
@@ -1050,9 +1090,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     shape: BadgeShape,
     customLabel?: string
   ) => {
-    setUsers(prev =>
-      prev.map(u => {
-        if (u.id === userId) {
+    const targetUserId = Number(userId);
+    setUsers(prev => {
+      const updatedList = prev.map(u => {
+        if (Number(u.id) === targetUserId) {
           const updatedUser: User = {
             ...u,
             isVerified: true,
@@ -1060,33 +1101,51 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             verifiedAt: u.verifiedAt || new Date().toISOString(),
             badgeVariant: variant,
             badgeShape: shape,
-            customBadgeLabel: customLabel !== undefined ? customLabel : u.customBadgeLabel,
+            customBadgeLabel: customLabel !== undefined ? (customLabel.trim() || undefined) : u.customBadgeLabel,
           };
           syncUserToDb(updatedUser).catch(() => {});
           return updatedUser;
         }
         return u;
-      })
-    );
+      });
+      safeSetStorage('alokpat_real_users', updatedList);
+      return updatedList;
+    });
+
+    const notif: AppNotification = {
+      id: `notif-badge-tier-${Date.now()}`,
+      userId: targetUserId,
+      type: 'admin_notice',
+      title: 'Official Badge Tier Updated',
+      message: `Your account verification badge tier has been updated to ${variant.toUpperCase()} (${shape} emblem).`,
+      isRead: false,
+      createdAt: new Date().toISOString(),
+      urgency: 'info',
+    };
+    setNotifications(prev => [notif, ...prev]);
+    syncNotificationToDb(notif).catch(() => {});
   };
 
   const adminSetVerificationStatus = (userId: number, status: VerificationStatus) => {
-    setUsers(prev =>
-      prev.map(u => {
-        if (u.id === userId) {
+    const targetUserId = Number(userId);
+    setUsers(prev => {
+      const updatedList = prev.map(u => {
+        if (Number(u.id) === targetUserId) {
           const isVerified = status === 'verified';
           const updatedUser: User = {
             ...u,
             isVerified,
             verificationStatus: status,
-            verifiedAt: isVerified ? new Date().toISOString() : undefined,
+            verifiedAt: isVerified ? (u.verifiedAt || new Date().toISOString()) : undefined,
           };
           syncUserToDb(updatedUser).catch(() => {});
           return updatedUser;
         }
         return u;
-      })
-    );
+      });
+      safeSetStorage('alokpat_real_users', updatedList);
+      return updatedList;
+    });
   };
 
   const adminToggleBan = (userId: number, reason?: string) => {
@@ -1213,7 +1272,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const adminUpdateUser = (userId: number, updates: Partial<User>) => {
-    setUsers(prev => prev.map(u => (u.id === userId ? { ...u, ...updates } : u)));
+    const targetUserId = Number(userId);
+    setUsers(prev => {
+      const updatedList = prev.map(u => {
+        if (Number(u.id) === targetUserId) {
+          const updated = { ...u, ...updates };
+          syncUserToDb(updated).catch(() => {});
+          return updated;
+        }
+        return u;
+      });
+      safeSetStorage('alokpat_real_users', updatedList);
+      return updatedList;
+    });
   };
 
   const resetAllData = () => {

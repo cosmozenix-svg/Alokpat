@@ -31,6 +31,7 @@ export const SettingsView: React.FC = () => {
     setIsAuthModalOpen,
     setAuthMode,
     changePassword,
+    setIsAdminPanelOpen,
   } = useApp();
 
   const [isTermsOpen, setIsTermsOpen] = useState(false);
@@ -326,6 +327,24 @@ export const SettingsView: React.FC = () => {
         <h3 className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400 mb-1">
           About & Policies
         </h3>
+
+        <button
+          onClick={() => setIsAdminPanelOpen(true)}
+          className="w-full flex items-center justify-between py-2.5 text-left bg-neutral-50/60 hover:bg-neutral-100 dark:bg-neutral-800/80 dark:hover:bg-neutral-750 px-2.5 rounded-xl border border-neutral-200/60 dark:border-white/20 transition-all cursor-pointer"
+        >
+          <div className="flex items-center gap-2.5">
+            <ShieldCheck size={15} className="text-purple-600 dark:text-purple-400" />
+            <div>
+              <span className="text-xs font-semibold text-neutral-800 dark:text-white block">
+                Admin & Moderation Panel
+              </span>
+              <span className="text-[10px] text-neutral-400">
+                Access admin controls or type /admin in URL
+              </span>
+            </div>
+          </div>
+          <ChevronRight size={14} className="text-neutral-400" />
+        </button>
 
         <button
           onClick={() => setIsTermsOpen(true)}

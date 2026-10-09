@@ -148,17 +148,19 @@ export const VerifiedBadge: React.FC<VerifiedBadgeProps> = ({
   const gradientId = `badge-grad-${rawId.replace(/[^a-zA-Z0-9_-]/g, '')}`;
 
   // Check if status is explicitly verified
-  const isVerified = status === true || status === 'verified';
+  const isVerified = user
+    ? (user.isVerified || user.verificationStatus === 'verified')
+    : (status === true || status === 'verified');
   if (!isVerified) return null;
 
-  // Resolve variant: user.badgeVariant -> prop variant -> admin check -> default 'blue'
+  // Resolve variant: prop variant (if specified) -> user.badgeVariant -> admin check -> default 'blue'
   const resolvedVariant: BadgeVariant =
-    user?.badgeVariant ||
     variant ||
+    user?.badgeVariant ||
     (user?.username === 'admin' || user?.email === 'cosmozenix@gmail.com' ? 'gold' : 'blue');
 
-  // Resolve shape: user.badgeShape -> prop shape -> default 'starburst'
-  const resolvedShape: BadgeShape = user?.badgeShape || shape || 'starburst';
+  // Resolve shape: prop shape (if specified) -> user.badgeShape -> default 'starburst'
+  const resolvedShape: BadgeShape = shape || user?.badgeShape || 'starburst';
 
   const config = BADGE_CONFIGS[resolvedVariant] || BADGE_CONFIGS.blue;
 

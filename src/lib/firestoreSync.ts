@@ -17,6 +17,28 @@ export const NOTIFICATIONS_COL = 'notifications';
 export const REPORTS_COL = 'reports';
 
 /**
+ * Sanitizes object data for Firestore by removing undefined values and normalizing types.
+ */
+export function sanitizeForFirestore<T>(data: T): any {
+  if (data === null || data === undefined) {
+    return null;
+  }
+  if (Array.isArray(data)) {
+    return data.map(item => sanitizeForFirestore(item)).filter(item => item !== undefined);
+  }
+  if (typeof data === 'object') {
+    const cleaned: Record<string, any> = {};
+    for (const [key, value] of Object.entries(data)) {
+      if (value !== undefined) {
+        cleaned[key] = sanitizeForFirestore(value);
+      }
+    }
+    return cleaned;
+  }
+  return data;
+}
+
+/**
  * Seeds initial demo data to Firestore if the database is currently unpopulated.
  */
 export async function seedFirestoreIfNeeded(
@@ -36,27 +58,27 @@ export async function seedFirestoreIfNeeded(
 
     // Seed users
     initialUsers.forEach(u => {
-      batch.set(doc(db, USERS_COL, u.id.toString()), u);
+      batch.set(doc(db, USERS_COL, u.id.toString()), sanitizeForFirestore(u), { merge: true });
     });
 
     // Seed posts
     initialPosts.forEach(p => {
-      batch.set(doc(db, POSTS_COL, p.id), p);
+      batch.set(doc(db, POSTS_COL, p.id), sanitizeForFirestore(p), { merge: true });
     });
 
     // Seed comments
     initialComments.forEach(c => {
-      batch.set(doc(db, COMMENTS_COL, c.id), c);
+      batch.set(doc(db, COMMENTS_COL, c.id), sanitizeForFirestore(c), { merge: true });
     });
 
     // Seed notifications
     initialNotifications.forEach(n => {
-      batch.set(doc(db, NOTIFICATIONS_COL, n.id), n);
+      batch.set(doc(db, NOTIFICATIONS_COL, n.id), sanitizeForFirestore(n), { merge: true });
     });
 
     // Seed reports
     initialReports.forEach(r => {
-      batch.set(doc(db, REPORTS_COL, r.id), r);
+      batch.set(doc(db, REPORTS_COL, r.id), sanitizeForFirestore(r), { merge: true });
     });
 
     await batch.commit();
@@ -79,7 +101,13 @@ export function subscribeToDatabase(callbacks: {
     collection(db, USERS_COL),
     snapshot => {
       if (!snapshot.empty) {
-        const users = snapshot.docs.map(d => d.data() as User);
+        const users = snapshot.docs.map(d => {
+          const raw = d.data();
+          return {
+            ...raw,
+            id: Number(raw.id || d.id),
+          } as User;
+        });
         callbacks.onUsers(users);
       }
     },
@@ -92,7 +120,13 @@ export function subscribeToDatabase(callbacks: {
     collection(db, POSTS_COL),
     snapshot => {
       if (!snapshot.empty) {
-        const posts = snapshot.docs.map(d => d.data() as Post);
+        const posts = snapshot.docs.map(d => {
+          const raw = d.data();
+          return {
+            ...raw,
+            userId: Number(raw.userId),
+          } as Post;
+        });
         callbacks.onPosts(posts);
       }
     },
@@ -105,7 +139,13 @@ export function subscribeToDatabase(callbacks: {
     collection(db, COMMENTS_COL),
     snapshot => {
       if (!snapshot.empty) {
-        const comments = snapshot.docs.map(d => d.data() as Comment);
+        const comments = snapshot.docs.map(d => {
+          const raw = d.data();
+          return {
+            ...raw,
+            userId: Number(raw.userId),
+          } as Comment;
+        });
         callbacks.onComments(comments);
       }
     },
@@ -118,7 +158,13 @@ export function subscribeToDatabase(callbacks: {
     collection(db, NOTIFICATIONS_COL),
     snapshot => {
       if (!snapshot.empty) {
-        const notifs = snapshot.docs.map(d => d.data() as AppNotification);
+        const notifs = snapshot.docs.map(d => {
+          const raw = d.data();
+          return {
+            ...raw,
+            userId: Number(raw.userId),
+          } as AppNotification;
+        });
         callbacks.onNotifications(notifs);
       }
     },
@@ -155,7 +201,8 @@ export function subscribeToDatabase(callbacks: {
 export async function syncUserToDb(user: User): Promise<void> {
   const path = `${USERS_COL}/${user.id}`;
   try {
-    await setDoc(doc(db, USERS_COL, user.id.toString()), user);
+    const cleaned = sanitizeForFirestore(user);
+    await setDoc(doc(db, USERS_COL, user.id.toString()), cleaned, { merge: true });
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
   }
@@ -164,7 +211,8 @@ export async function syncUserToDb(user: User): Promise<void> {
 export async function syncPostToDb(post: Post): Promise<void> {
   const path = `${POSTS_COL}/${post.id}`;
   try {
-    await setDoc(doc(db, POSTS_COL, post.id), post);
+    const cleaned = sanitizeForFirestore(post);
+    await setDoc(doc(db, POSTS_COL, post.id), cleaned, { merge: true });
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
   }
@@ -182,7 +230,8 @@ export async function deletePostFromDb(postId: string): Promise<void> {
 export async function syncCommentToDb(comment: Comment): Promise<void> {
   const path = `${COMMENTS_COL}/${comment.id}`;
   try {
-    await setDoc(doc(db, COMMENTS_COL, comment.id), comment);
+    const cleaned = sanitizeForFirestore(comment);
+    await setDoc(doc(db, COMMENTS_COL, comment.id), cleaned, { merge: true });
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
   }
@@ -200,7 +249,8 @@ export async function deleteCommentFromDb(commentId: string): Promise<void> {
 export async function syncNotificationToDb(notification: AppNotification): Promise<void> {
   const path = `${NOTIFICATIONS_COL}/${notification.id}`;
   try {
-    await setDoc(doc(db, NOTIFICATIONS_COL, notification.id), notification);
+    const cleaned = sanitizeForFirestore(notification);
+    await setDoc(doc(db, NOTIFICATIONS_COL, notification.id), cleaned, { merge: true });
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
   }
@@ -218,7 +268,8 @@ export async function deleteNotificationFromDb(notificationId: string): Promise<
 export async function syncReportToDb(report: ContentReport): Promise<void> {
   const path = `${REPORTS_COL}/${report.id}`;
   try {
-    await setDoc(doc(db, REPORTS_COL, report.id), report);
+    const cleaned = sanitizeForFirestore(report);
+    await setDoc(doc(db, REPORTS_COL, report.id), cleaned, { merge: true });
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
   }

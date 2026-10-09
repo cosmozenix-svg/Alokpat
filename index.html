@@ -18,6 +18,18 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <script>
+      // Client-side fallback router for static hosts (Vercel, GitHub Pages)
+      (function() {
+        try {
+          var p = window.location.pathname.toLowerCase().replace(/\/+$/, '');
+          var h = window.location.hash.toLowerCase();
+          if ((p === '/admin' || p.endsWith('/admin')) && (!h || h === '#')) {
+            window.location.hash = '/admin';
+          }
+        } catch (e) {}
+      })();
+    </script>
+    <script>
       (function() {
         try {
           var _currentFetch = typeof window !== 'undefined' && window.fetch ? window.fetch.bind(window) : null;

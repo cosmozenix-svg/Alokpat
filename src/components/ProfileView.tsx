@@ -58,8 +58,10 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ userId }) => {
   const [verificationFeedback, setVerificationFeedback] = useState<string | null>(null);
 
   const targetId = userId || viewingUserId || currentUser?.id;
-  const user = targetId ? getUserById(targetId) || (currentUser?.id === targetId ? currentUser : null) : currentUser;
-  const isSelf = !!currentUser && currentUser.id === user?.id;
+  const user = targetId
+    ? getUserById(targetId) || (currentUser && Number(currentUser.id) === Number(targetId) ? currentUser : null)
+    : currentUser;
+  const isSelf = !!currentUser && Number(currentUser.id) === Number(user?.id);
 
   const [activeTabSub, setActiveTabSub] = useState<'posts' | 'media' | 'liked' | 'saved'>('posts');
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -382,7 +384,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ userId }) => {
           </div>
 
           {/* Stats Bar */}
-          <div className="profile-stats-box mt-3.5 grid grid-cols-4 gap-2 p-2.5 bg-neutral-100 dark:bg-[#27272a] rounded-xl border border-neutral-200/80 dark:border-white/30 text-center shadow-xs">
+          <div className="profile-stats-box mt-3.5 grid grid-cols-4 gap-2 p-2.5 bg-neutral-100 dark:bg-neutral-700 rounded-xl border border-neutral-200/80 dark:border-white/40 text-center shadow-xs">
             <div>
               <p className="text-sm font-bold text-neutral-900 dark:text-white">{userPosts.length}</p>
               <p className="text-[11px] font-medium text-neutral-600 dark:text-white">Posts</p>
