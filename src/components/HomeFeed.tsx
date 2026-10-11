@@ -224,7 +224,7 @@ export const HomeFeed: React.FC = () => {
             Welcome to Alokpat
           </h3>
           <p className="text-xs text-neutral-700 dark:text-neutral-100 mt-1 leading-relaxed">
-            Create an account or sign in to share posts, follow members, and discover keywords.
+            Create an account or sign in to publish posts, follow members, and discover keywords.
           </p>
           <div className="flex items-center gap-2 mt-3">
             <button
@@ -309,8 +309,8 @@ export const HomeFeed: React.FC = () => {
           </h3>
           <p className="text-xs text-neutral-600 dark:text-neutral-100 mt-1 max-w-xs mx-auto leading-relaxed">
             {currentUser
-              ? 'Be the first to share an update, thoughts, or photos.'
-              : 'Create an account to start sharing posts with the community.'}
+              ? 'Be the first to publish an update, thoughts, or photos.'
+              : 'Create an account to start publishing posts with the community.'}
           </p>
           <button
             onClick={() => {

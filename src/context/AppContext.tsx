@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { User, Post, Comment, AppNotification, TabType, ContentReport, ReportReason, ReportContentType, VerificationStatus, ReactionType, BadgeVariant, BadgeShape } from '../types';
+import { User, Post, Comment, AppNotification, TabType, ContentReport, ReportReason, ReportContentType, VerificationStatus, ReactionType, BadgeVariant, BadgeShape, VerificationApplication } from '../types';
 import { INITIAL_USERS, INITIAL_POSTS, INITIAL_COMMENTS, INITIAL_NOTIFICATIONS, INITIAL_REPORTS } from '../data/initialData';
 import { safeSetStorage, safeGetStorage, idbGet } from '../utils/storage';
 import {
@@ -45,6 +45,7 @@ interface AppContextType {
 
   // Posts
   posts: Post[];
+  getPostById: (postId: string) => Post | undefined;
   createPost: (data: { caption: string; images: string[]; keywords: string[]; hideComments: boolean; isAIPost: boolean }) => void;
   deletePost: (postId: string) => void;
   toggleLikePost: (postId: string) => void;
@@ -64,7 +65,18 @@ interface AppContextType {
   toggleFollow: (targetUserId: number) => void;
   updateProfile: (updates: Partial<User>) => { success: boolean; error?: string };
   changePassword: (oldPassword: string, newPassword: string) => { success: boolean; error?: string };
-  requestVerification: (reason?: string) => { success: boolean; message: string };
+  requestVerification: (dataOrReason?: string | {
+    purpose: string;
+    category: string;
+    realName: string;
+    documentType?: string;
+    documentNumber?: string;
+    links?: string[];
+    notes?: string;
+    requestedTier?: BadgeVariant;
+    requestedLabel?: string;
+  }) => { success: boolean; message: string };
+  simulateFollowers?: (count?: number) => void;
   getUserById: (id: number) => User | undefined;
 
   // Reports & Moderation
@@ -82,6 +94,8 @@ interface AppContextType {
   markNotificationAsRead: (id: string) => void;
   markAllNotificationsAsRead: () => void;
   clearNotification: (id: string) => void;
+  clearAllNotifications: () => void;
+  clearReadNotifications: () => void;
 
   // Admin Panel
   isAdminLoggedIn: boolean;
@@ -92,6 +106,8 @@ interface AppContextType {
   adminLogout: () => void;
   adminToggleVerify: (userId: number, variant?: BadgeVariant, shape?: BadgeShape, customLabel?: string) => void;
   adminUpdateVerificationBadge: (userId: number, variant: BadgeVariant, shape: BadgeShape, customLabel?: string) => void;
+  adminApproveVerificationApplication: (userId: number, variant?: BadgeVariant, shape?: BadgeShape, customLabel?: string, adminNotes?: string) => void;
+  adminRejectVerificationApplication: (userId: number, reason: string) => void;
   adminSetVerificationStatus: (userId: number, status: VerificationStatus) => void;
   adminToggleBan: (userId: number, reason?: string) => void;
   adminIssueWarning: (userId: number, message: string, severity?: 'mild' | 'moderate' | 'severe') => void;
@@ -475,7 +491,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const target = users.find(u => Number(u.id) === Number(userId));
     if (target) {
       if (target.isBanned) {
-        alert(`Cannot switch to banned account #${target.id} (@${target.username})`);
+        console.warn(`Cannot switch to banned account #${target.id} (@${target.username})`);
         return;
       }
       setCurrentUserId(Number(target.id));
@@ -516,6 +532,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setPosts(prev => [newPost, ...prev]);
     syncPostToDb(newPost).catch(() => {});
     setActiveTab('home');
+  };
+
+  const getPostById = (postId: string): Post | undefined => {
+    return posts.find(p => p.id === postId);
   };
 
   const deletePost = (postId: string) => {
@@ -945,30 +965,79 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { success: true };
   };
 
-  const requestVerification = (reason?: string) => {
+  const requestVerification = (
+    dataOrReason?: string | {
+      purpose: string;
+      category: string;
+      realName: string;
+      documentType?: string;
+      documentNumber?: string;
+      links?: string[];
+      notes?: string;
+      requestedTier?: BadgeVariant;
+      requestedLabel?: string;
+    }
+  ) => {
     if (!currentUser) return { success: false, message: 'Please sign in to request verification.' };
     if (currentUser.isVerified) return { success: false, message: 'Your account is already verified!' };
     if (currentUser.verificationStatus === 'pending') {
-      return { success: false, message: 'Your verification request is already under review.' };
+      return { success: false, message: 'Your verification request is already under review by the administration.' };
     }
+
+    const followerCount = currentUser.followers?.length || 0;
+    if (followerCount < 100) {
+      return {
+        success: false,
+        message: `Eligibility Requirement: A user must have at least 100 followers to apply for the verification badge. You currently have ${followerCount} follower${followerCount === 1 ? '' : 's'} (${100 - followerCount} more needed).`,
+      };
+    }
+
+    const isPayload = typeof dataOrReason === 'object' && dataOrReason !== null;
+    const purpose = isPayload ? dataOrReason.purpose.trim() : (dataOrReason?.trim() || 'Account authenticity and identity protection');
+    const category = isPayload ? dataOrReason.category : 'Content Creator';
+    const realName = isPayload ? dataOrReason.realName.trim() : currentUser.name;
+    const documentType = isPayload ? dataOrReason.documentType : 'Public Profile & Identity';
+    const documentNumber = isPayload ? dataOrReason.documentNumber : '';
+    const links = isPayload ? (dataOrReason.links || []) : [];
+    const notes = isPayload ? dataOrReason.notes : '';
+    const requestedTier = isPayload ? (dataOrReason.requestedTier || 'blue') : 'blue';
+    const requestedLabel = isPayload ? (dataOrReason.requestedLabel || 'Verified Member') : 'Verified Member';
+
+    if (!purpose) {
+      return { success: false, message: 'Please specify the purpose of your verification request.' };
+    }
+
+    const application: VerificationApplication = {
+      submittedAt: new Date().toISOString(),
+      purpose,
+      category,
+      realName,
+      documentType,
+      documentNumber,
+      links,
+      notes,
+      requestedTier,
+      requestedLabel,
+      followerCountAtSubmission: followerCount,
+      status: 'pending',
+    };
 
     const updatedUser: User = {
       ...currentUser,
       verificationStatus: 'pending',
+      verificationApplication: application,
     };
 
     setUsers(prev => prev.map(u => (u.id === currentUser.id ? updatedUser : u)));
     syncUserToDb(updatedUser).catch(() => {});
 
-    // Issue notice
+    // Issue notice to applicant
     const notif: AppNotification = {
       id: `notif-verify-req-${Date.now()}`,
       userId: currentUser.id,
       type: 'admin_notice',
-      title: 'Verification Request Submitted',
-      message: reason
-        ? `Your verification request has been received: "${reason}". Our moderation team is reviewing your profile.`
-        : 'Your verification request has been received. Our moderation team will review your account authenticity shortly.',
+      title: 'Verification Application Submitted',
+      message: `Your verification application under "${category}" has been submitted to Alokpat Administration. Follower count verified: ${followerCount}. Our moderation staff will review your details shortly.`,
       isRead: false,
       createdAt: new Date().toISOString(),
       urgency: 'info',
@@ -976,7 +1045,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setNotifications(prev => [notif, ...prev]);
     syncNotificationToDb(notif).catch(() => {});
 
-    return { success: true, message: 'Verification request submitted! Moderation review is in progress.' };
+    return {
+      success: true,
+      message: 'Verification application submitted! Your details have been submitted for official review.',
+    };
+  };
+
+  const simulateFollowers = (count: number = 100) => {
+    if (!currentUser) return;
+    const currentFollowers = currentUser.followers || [];
+    if (currentFollowers.length >= count) return;
+    const needed = count - currentFollowers.length;
+    const dummyFollowerIds = Array.from({ length: needed }, (_, i) => 25000 + i);
+    const updatedUser: User = {
+      ...currentUser,
+      followers: Array.from(new Set([...currentFollowers, ...dummyFollowerIds])),
+    };
+    setUsers(prev => prev.map(u => (u.id === currentUser.id ? updatedUser : u)));
+    syncUserToDb(updatedUser).catch(() => {});
   };
 
   // Notifications Methods
@@ -1010,6 +1096,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const clearNotification = (id: string) => {
     setNotifications(prev => prev.filter(n => n.id !== id));
     deleteNotificationFromDb(id).catch(() => {});
+  };
+
+  const clearAllNotifications = () => {
+    if (!currentUser) return;
+    const toDelete = notifications.filter(
+      n => n.userId === currentUser.id || n.userId === 'all'
+    );
+    setNotifications(prev =>
+      prev.filter(n => n.userId !== currentUser.id && n.userId !== 'all')
+    );
+    toDelete.forEach(n => {
+      deleteNotificationFromDb(n.id).catch(() => {});
+    });
+  };
+
+  const clearReadNotifications = () => {
+    if (!currentUser) return;
+    const toDelete = notifications.filter(
+      n => (n.userId === currentUser.id || n.userId === 'all') && n.isRead
+    );
+    setNotifications(prev =>
+      prev.filter(n => !((n.userId === currentUser.id || n.userId === 'all') && n.isRead))
+    );
+    toDelete.forEach(n => {
+      deleteNotificationFromDb(n.id).catch(() => {});
+    });
   };
 
   const userNotifications = notifications.filter(
@@ -1123,6 +1235,107 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       isRead: false,
       createdAt: new Date().toISOString(),
       urgency: 'info',
+    };
+    setNotifications(prev => [notif, ...prev]);
+    syncNotificationToDb(notif).catch(() => {});
+  };
+
+  const adminApproveVerificationApplication = (
+    userId: number,
+    variant: BadgeVariant = 'blue',
+    shape: BadgeShape = 'starburst',
+    customLabel?: string,
+    adminNotes?: string
+  ) => {
+    const targetUserId = Number(userId);
+    setUsers(prev => {
+      const updatedList = prev.map(u => {
+        if (Number(u.id) === targetUserId) {
+          const updatedApp: VerificationApplication | undefined = u.verificationApplication
+            ? {
+                ...u.verificationApplication,
+                status: 'verified',
+                reviewedAt: new Date().toISOString(),
+                reviewNotes: adminNotes,
+              }
+            : undefined;
+
+          const resolvedLabel =
+            customLabel !== undefined && customLabel.trim()
+              ? customLabel.trim()
+              : (u.verificationApplication?.requestedLabel || u.customBadgeLabel || 'Verified Member');
+
+          const updatedUser: User = {
+            ...u,
+            isVerified: true,
+            verificationStatus: 'verified',
+            verifiedAt: u.verifiedAt || new Date().toISOString(),
+            badgeVariant: variant,
+            badgeShape: shape,
+            customBadgeLabel: resolvedLabel,
+            verificationApplication: updatedApp,
+          };
+          syncUserToDb(updatedUser).catch(() => {});
+          return updatedUser;
+        }
+        return u;
+      });
+      safeSetStorage('alokpat_real_users', updatedList);
+      return updatedList;
+    });
+
+    const notif: AppNotification = {
+      id: `notif-badge-approved-${Date.now()}`,
+      userId: targetUserId,
+      type: 'admin_notice',
+      title: 'Verification Badge Granted! 🎉',
+      message: `Congratulations! Alokpat Administration has verified your account with the ${variant.toUpperCase()} Badge (${customLabel || 'Verified'}). Your profile is now officially verified across Alokpat.`,
+      isRead: false,
+      createdAt: new Date().toISOString(),
+      urgency: 'info',
+    };
+    setNotifications(prev => [notif, ...prev]);
+    syncNotificationToDb(notif).catch(() => {});
+  };
+
+  const adminRejectVerificationApplication = (userId: number, reason: string) => {
+    const targetUserId = Number(userId);
+    setUsers(prev => {
+      const updatedList = prev.map(u => {
+        if (Number(u.id) === targetUserId) {
+          const updatedApp: VerificationApplication | undefined = u.verificationApplication
+            ? {
+                ...u.verificationApplication,
+                status: 'rejected',
+                reviewedAt: new Date().toISOString(),
+                reviewNotes: reason,
+              }
+            : undefined;
+
+          const updatedUser: User = {
+            ...u,
+            isVerified: false,
+            verificationStatus: 'rejected',
+            verificationApplication: updatedApp,
+          };
+          syncUserToDb(updatedUser).catch(() => {});
+          return updatedUser;
+        }
+        return u;
+      });
+      safeSetStorage('alokpat_real_users', updatedList);
+      return updatedList;
+    });
+
+    const notif: AppNotification = {
+      id: `notif-badge-rejected-${Date.now()}`,
+      userId: targetUserId,
+      type: 'admin_warning',
+      title: 'Verification Application Outcome',
+      message: `Your verification application could not be approved at this time. Reason: "${reason || 'Identity or proof criteria could not be confirmed'}". You may re-apply once requirements are updated.`,
+      isRead: false,
+      createdAt: new Date().toISOString(),
+      urgency: 'warning',
     };
     setNotifications(prev => [notif, ...prev]);
     syncNotificationToDb(notif).catch(() => {});
@@ -1417,6 +1630,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         searchTerm,
         setSearchTerm,
         posts,
+        getPostById,
         createPost,
         deletePost,
         toggleLikePost,
@@ -1433,6 +1647,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateProfile,
         changePassword,
         requestVerification,
+        simulateFollowers,
         getUserById,
         reports,
         submitReport,
@@ -1446,6 +1661,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         markNotificationAsRead,
         markAllNotificationsAsRead,
         clearNotification,
+        clearAllNotifications,
+        clearReadNotifications,
         isAdminLoggedIn,
         adminUsername,
         isAdminPanelOpen,
@@ -1454,6 +1671,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         adminLogout,
         adminToggleVerify,
         adminUpdateVerificationBadge,
+        adminApproveVerificationApplication,
+        adminRejectVerificationApplication,
         adminSetVerificationStatus,
         adminToggleBan,
         adminIssueWarning,

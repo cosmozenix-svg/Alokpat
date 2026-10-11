@@ -91,7 +91,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ userId }) => {
           <p className="text-xs text-neutral-500 dark:text-neutral-400">
             {currentUser
               ? 'This account does not exist or may have been removed.'
-              : 'Create an account to customize your profile, bio, cover, and share posts.'}
+              : 'Create an account to customize your profile, bio, cover, and publish posts.'}
           </p>
           {!currentUser && (
             <div className="flex items-center justify-center gap-2 pt-2">
@@ -549,7 +549,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ userId }) => {
                         </div>
 
                         <p className="line-clamp-3 sm:line-clamp-4 text-[10px] sm:text-xs font-medium text-neutral-800 dark:text-neutral-100 leading-snug whitespace-pre-wrap">
-                          {p.caption || 'Shared post'}
+                          {p.caption || 'Published post'}
                         </p>
 
                         <div className="flex items-center justify-between text-[10px] text-neutral-500 dark:text-neutral-400 pt-1 border-t border-neutral-200/60 dark:border-neutral-800">
@@ -591,7 +591,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ userId }) => {
         };
 
         if (activeTabSub === 'posts') {
-          return renderContent(sortedUserPosts, 'No posts shared yet.');
+          return renderContent(sortedUserPosts, 'No posts published yet.');
         }
         if (activeTabSub === 'media') {
           return renderContent(mediaPosts, 'No media uploaded yet.', <ImageIcon size={18} />);
@@ -820,6 +820,99 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ userId }) => {
                 Save Changes
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Verification Request Modal */}
+      {isVerificationModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
+          <div className="relative w-full max-w-md bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-neutral-200 dark:border-white/20 overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="px-5 py-3.5 border-b border-neutral-100 dark:border-white/10 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <ShieldCheck size={18} className="text-purple-600 dark:text-purple-400" />
+                <h3 className="font-semibold text-neutral-900 dark:text-white text-sm">
+                  Apply for Verified Badge
+                </h3>
+              </div>
+              <button
+                onClick={() => {
+                  setIsVerificationModalOpen(false);
+                  setVerificationFeedback(null);
+                }}
+                className="p-1 rounded-md text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs">
+              <div className="p-3 bg-neutral-100 dark:bg-zinc-800 rounded-xl border border-neutral-200 dark:border-white/20 space-y-1">
+                <p className="font-semibold text-neutral-900 dark:text-white">
+                  Alokpat Official Authenticity Badge
+                </p>
+                <p className="text-[11px] text-neutral-600 dark:text-neutral-300 leading-relaxed">
+                  Verified badges confirm genuine creator identities and protect against impersonators. You will receive an Official Authenticity Certificate upon approval.
+                </p>
+              </div>
+
+              {verificationFeedback && (
+                <div className="p-2.5 bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 rounded-xl border border-purple-200 dark:border-purple-800 flex items-center gap-2">
+                  <Check size={14} className="flex-shrink-0" />
+                  <span>{verificationFeedback}</span>
+                </div>
+              )}
+
+              {user?.verificationStatus === 'pending' ? (
+                <div className="p-4 bg-amber-50 dark:bg-zinc-800 text-amber-800 dark:text-amber-300 rounded-xl border border-amber-200 dark:border-white/20 text-center space-y-1">
+                  <p className="font-bold">Application Under Review</p>
+                  <p className="text-[11px] text-neutral-600 dark:text-neutral-300">
+                    Your request has been submitted to the moderation team and is currently awaiting approval.
+                  </p>
+                </div>
+              ) : (
+                <form
+                  onSubmit={e => {
+                    e.preventDefault();
+                    const res = requestVerification(verificationReason);
+                    setVerificationFeedback(res.message);
+                    if (res.success) {
+                      setVerificationReason('');
+                    }
+                  }}
+                  className="space-y-3"
+                >
+                  <div>
+                    <label className="block font-semibold text-neutral-700 dark:text-white mb-1">
+                      Reason or Creator Category
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={verificationReason}
+                      onChange={e => setVerificationReason(e.target.value)}
+                      placeholder="e.g. Content Creator, Official Organization, Public Figure..."
+                      className="w-full p-2.5 bg-neutral-50 dark:bg-zinc-800 border border-neutral-200 dark:border-white/20 rounded-xl text-neutral-900 dark:text-white resize-none"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setIsVerificationModalOpen(false)}
+                      className="flex-1 py-2 px-3 rounded-xl bg-neutral-100 hover:bg-neutral-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-neutral-700 dark:text-white font-semibold transition-colors text-center border border-neutral-200 dark:border-white/20"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="flex-1 py-2 px-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-semibold shadow-md shadow-purple-600/20 active:scale-95 transition-all text-center"
+                    >
+                      Submit Application
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
           </div>
         </div>
       )}

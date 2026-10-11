@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Bell, X } from 'lucide-react';
 import { AppProvider, useApp } from './context/AppContext';
 import { Header } from './components/Header';
 import { BottomNav } from './components/BottomNav';
@@ -11,6 +12,8 @@ import { NotificationsView } from './components/NotificationsView';
 import { AuthModal } from './components/AuthModal';
 import { AdminPanel } from './components/AdminPanel';
 import { ReportModal } from './components/ReportModal';
+import { AppNotification } from './types';
+import { playNotificationSound, sendBrowserNotification } from './utils/notificationAudio';
 
 /**
  * Checks whether the current URL represents an admin route
@@ -53,11 +56,44 @@ const MainLayout: React.FC = () => {
     isDarkMode,
     isAdminPanelOpen,
     setIsAdminPanelOpen,
+    notifications,
+    unreadNotificationCount,
+    currentUser,
   } = useApp();
 
   const [currentRoute, setCurrentRoute] = useState<'main' | 'admin'>(() => {
     return checkIsAdminRoute() ? 'admin' : 'main';
   });
+
+  // Live Toast for incoming unread notifications
+  const [liveToast, setLiveToast] = useState<AppNotification | null>(null);
+  const prevUnreadCountRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (prevUnreadCountRef.current === null) {
+      prevUnreadCountRef.current = unreadNotificationCount;
+      return;
+    }
+
+    if (unreadNotificationCount > prevUnreadCountRef.current && currentUser) {
+      const userNotifs = notifications.filter(
+        n => n.userId === currentUser.id || n.userId === 'all'
+      );
+      const latest = userNotifs[0];
+      if (latest && !latest.isRead && activeTab !== 'notifications') {
+        setLiveToast(latest);
+        playNotificationSound();
+        sendBrowserNotification(latest.title, latest.message);
+
+        const timer = setTimeout(() => {
+          setLiveToast(null);
+        }, 5000);
+        return () => clearTimeout(timer);
+      }
+    }
+
+    prevUnreadCountRef.current = unreadNotificationCount;
+  }, [unreadNotificationCount, notifications, currentUser, activeTab]);
 
   // Client-side route handling: popstate, hashchange, and custom navigation
   useEffect(() => {
@@ -147,6 +183,42 @@ const MainLayout: React.FC = () => {
     >
       {/* Mobile-Oriented Clean Minimal Container */}
       <div className="w-full max-w-md min-h-screen bg-white dark:bg-neutral-900 shadow-xl relative flex flex-col border-x border-neutral-200/80 dark:border-neutral-800/80">
+        {/* Floating In-App Live Notification Toast */}
+        {liveToast && (
+          <div
+            onClick={() => {
+              setActiveTab('notifications');
+              setLiveToast(null);
+            }}
+            className="fixed top-3 left-1/2 -translate-x-1/2 z-50 w-[92%] max-w-sm bg-neutral-900/95 dark:bg-neutral-800/95 text-white p-3 rounded-2xl shadow-2xl border border-white/15 backdrop-blur-md flex items-center justify-between gap-3 cursor-pointer animate-in slide-in-from-top duration-200"
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center flex-shrink-0 shadow-sm">
+                <Bell size={15} />
+              </div>
+              <div className="min-w-0">
+                <h5 className="font-bold text-xs truncate">{liveToast.title}</h5>
+                <p className="text-[11px] text-neutral-300 truncate">{liveToast.message}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              <span className="text-[10px] font-bold text-purple-300 bg-purple-950/80 px-2 py-0.5 rounded-md border border-purple-700/60">
+                View
+              </span>
+              <button
+                onClick={e => {
+                  e.stopPropagation();
+                  setLiveToast(null);
+                }}
+                className="p-1 text-neutral-400 hover:text-white"
+                title="Dismiss"
+              >
+                <X size={13} />
+              </button>
+            </div>
+          </div>
+        )}
+
         <Header />
 
         <main className="flex-1 px-4">

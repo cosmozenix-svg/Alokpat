@@ -8,7 +8,6 @@ import {
   Calendar,
   ExternalLink,
   Copy,
-  Share2,
   Sparkles,
   Award,
   Fingerprint,
@@ -56,9 +55,9 @@ export const BADGE_CONFIGS: Record<
     accent: '#60a5fa',
     ring: 'ring-blue-500/30',
     glow: 'shadow-blue-500/30',
-    text: 'text-blue-600 dark:text-blue-400',
-    bg: 'bg-blue-50 dark:bg-blue-950/60',
-    border: 'border-blue-200 dark:border-blue-800/60',
+    text: 'text-blue-600 dark:text-blue-300',
+    bg: 'bg-blue-50 dark:bg-blue-950/80',
+    border: 'border-blue-200 dark:border-blue-700/80',
     label: 'Verified Member',
     badgeTitle: 'Verified Account',
     desc: 'Identity officially authenticated by Alokpat Administration with registered sequential ID.',
@@ -70,9 +69,9 @@ export const BADGE_CONFIGS: Record<
     accent: '#fde047',
     ring: 'ring-amber-500/30',
     glow: 'shadow-amber-500/30',
-    text: 'text-amber-600 dark:text-amber-400',
-    bg: 'bg-amber-50 dark:bg-amber-950/60',
-    border: 'border-amber-200 dark:border-amber-800/60',
+    text: 'text-amber-600 dark:text-amber-300',
+    bg: 'bg-amber-50 dark:bg-amber-950/80',
+    border: 'border-amber-200 dark:border-amber-700/80',
     label: 'Official Staff / Org',
     badgeTitle: 'Official Staff & Organization',
     desc: 'Official platform staff, moderator, or recognized verified partner organization.',
@@ -84,9 +83,9 @@ export const BADGE_CONFIGS: Record<
     accent: '#c084fc',
     ring: 'ring-purple-500/30',
     glow: 'shadow-purple-500/30',
-    text: 'text-purple-600 dark:text-purple-400',
-    bg: 'bg-purple-50 dark:bg-purple-950/60',
-    border: 'border-purple-200 dark:border-purple-800/60',
+    text: 'text-purple-600 dark:text-purple-300',
+    bg: 'bg-purple-50 dark:bg-purple-950/80',
+    border: 'border-purple-200 dark:border-purple-700/80',
     label: 'VIP Founding Creator',
     badgeTitle: 'VIP Founding Creator',
     desc: 'Founding creator with distinctive contributions to the Alokpat ecosystem.',
@@ -98,9 +97,9 @@ export const BADGE_CONFIGS: Record<
     accent: '#6ee7b7',
     ring: 'ring-emerald-500/30',
     glow: 'shadow-emerald-500/30',
-    text: 'text-emerald-600 dark:text-emerald-400',
-    bg: 'bg-emerald-50 dark:bg-emerald-950/60',
-    border: 'border-emerald-200 dark:border-emerald-800/60',
+    text: 'text-emerald-600 dark:text-emerald-300',
+    bg: 'bg-emerald-50 dark:bg-emerald-950/80',
+    border: 'border-emerald-200 dark:border-emerald-700/80',
     label: 'Certified Real Identity',
     badgeTitle: 'Certified Real Human Identity',
     desc: 'Verified genuine human identity with zero standing policy infractions.',
@@ -112,9 +111,9 @@ export const BADGE_CONFIGS: Record<
     accent: '#fda4af',
     ring: 'ring-rose-500/30',
     glow: 'shadow-rose-500/30',
-    text: 'text-rose-600 dark:text-rose-400',
-    bg: 'bg-rose-50 dark:bg-rose-950/60',
-    border: 'border-rose-200 dark:border-rose-800/60',
+    text: 'text-rose-600 dark:text-rose-300',
+    bg: 'bg-rose-50 dark:bg-rose-950/80',
+    border: 'border-rose-200 dark:border-rose-700/80',
     label: 'Featured Partner',
     badgeTitle: 'Featured Top Creator',
     desc: 'Featured elite creator honored for outstanding community engagement.',
@@ -139,7 +138,6 @@ export const VerifiedBadge: React.FC<VerifiedBadgeProps> = ({
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
-  const [copiedLink, setCopiedLink] = useState(false);
   const [copiedCertId, setCopiedCertId] = useState(false);
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const badgeContainerRef = useRef<HTMLSpanElement | null>(null);
@@ -214,32 +212,6 @@ export const VerifiedBadge: React.FC<VerifiedBadgeProps> = ({
     navigator.clipboard.writeText(certId);
     setCopiedCertId(true);
     setTimeout(() => setCopiedCertId(false), 2200);
-  };
-
-  const copyLinkToClipboard = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    const url = `${window.location.origin}/#verify-${user?.id || 10001}`;
-    navigator.clipboard.writeText(url);
-    setCopiedLink(true);
-    setTimeout(() => setCopiedLink(false), 2200);
-  };
-
-  const shareCertificate = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    const shareData = {
-      title: `${user?.name || 'User'} Verified on Alokpat`,
-      text: `Official verification credentials for @${user?.username || 'user'} on Alokpat. Tier: ${config.badgeTitle}.`,
-      url: `${window.location.origin}/#verify-${user?.id || 10001}`,
-    };
-    if (navigator.share) {
-      try {
-        await navigator.share(shareData);
-      } catch {
-        copyLinkToClipboard(e);
-      }
-    } else {
-      copyLinkToClipboard(e);
-    }
   };
 
   // Render SVG badge based on shape
@@ -356,7 +328,7 @@ export const VerifiedBadge: React.FC<VerifiedBadgeProps> = ({
         {/* Rich Desktop Hover Card Popover */}
         {isHovered && interactive && showHoverCard && (
           <div
-            className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 z-50 w-64 bg-white dark:bg-neutral-900 rounded-2xl p-3.5 shadow-2xl border border-neutral-200 dark:border-neutral-800 text-left pointer-events-auto animate-in fade-in zoom-in-95 duration-150"
+            className="cert-modal-card absolute left-1/2 -translate-x-1/2 bottom-full mb-2 z-50 w-64 bg-white dark:bg-zinc-900 rounded-2xl p-3.5 shadow-2xl border border-neutral-200 dark:border-white/20 text-left pointer-events-auto animate-in fade-in zoom-in-95 duration-150"
             onClick={e => e.stopPropagation()}
             onMouseEnter={() => {
               if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
@@ -365,7 +337,7 @@ export const VerifiedBadge: React.FC<VerifiedBadgeProps> = ({
             onMouseLeave={handleMouseLeave}
           >
             {/* Popover Arrow */}
-            <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 w-2.5 h-2.5 bg-white dark:bg-neutral-900 border-r border-b border-neutral-200 dark:border-neutral-800 rotate-45" />
+            <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 w-2.5 h-2.5 bg-white dark:bg-zinc-900 border-r border-b border-neutral-200 dark:border-white/20 rotate-45" />
 
             <div className="flex items-start justify-between gap-2">
               <div className="flex items-center gap-2">
@@ -381,23 +353,23 @@ export const VerifiedBadge: React.FC<VerifiedBadgeProps> = ({
                   </span>
                 </div>
               </div>
-              <span className="px-1.5 py-0.5 rounded text-[9px] font-mono bg-neutral-100 dark:bg-neutral-800 text-neutral-500">
+              <span className="px-1.5 py-0.5 rounded text-[9px] font-mono bg-neutral-100 dark:bg-zinc-800 text-neutral-600 dark:text-neutral-200 border border-transparent dark:border-white/10">
                 #{user?.id || 10001}
               </span>
             </div>
 
-            <p className="mt-2 text-[11px] text-neutral-600 dark:text-neutral-300 leading-snug">
+            <p className="mt-2 text-[11px] text-neutral-600 dark:text-neutral-200 leading-snug">
               {config.desc}
             </p>
 
-            <div className="mt-2.5 pt-2 border-t border-neutral-100 dark:border-neutral-800 flex items-center justify-between text-[10px]">
-              <span className="text-neutral-400 flex items-center gap-1">
-                <ShieldCheck size={11} className="text-emerald-500" />
+            <div className="mt-2.5 pt-2 border-t border-neutral-100 dark:border-white/15 flex items-center justify-between text-[10px]">
+              <span className="text-neutral-500 dark:text-neutral-300 flex items-center gap-1">
+                <ShieldCheck size={11} className="text-emerald-500 dark:text-emerald-400" />
                 <span>ID Protected</span>
               </span>
               <button
                 onClick={handleClick}
-                className="text-purple-600 dark:text-purple-400 font-semibold hover:underline flex items-center gap-0.5 cursor-pointer"
+                className="text-purple-600 dark:text-purple-300 font-semibold hover:underline flex items-center gap-0.5 cursor-pointer"
               >
                 <span>Inspect Certificate</span>
                 <ExternalLink size={10} />
@@ -417,7 +389,7 @@ export const VerifiedBadge: React.FC<VerifiedBadgeProps> = ({
           }}
         >
           <div
-            className="relative w-full max-w-md bg-white dark:bg-neutral-900 rounded-3xl shadow-2xl border border-neutral-200 dark:border-neutral-800 overflow-hidden animate-in zoom-in-95 duration-150"
+            className="cert-modal-card relative w-full max-w-md bg-white dark:bg-zinc-900 rounded-3xl shadow-2xl border border-neutral-200 dark:border-white/20 overflow-hidden animate-in zoom-in-95 duration-150"
             onClick={e => e.stopPropagation()}
           >
             {/* Top Ornamental Header Banner */}
@@ -461,7 +433,7 @@ export const VerifiedBadge: React.FC<VerifiedBadgeProps> = ({
             <div className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
               {/* User Profile Spotlight Card */}
               {user ? (
-                <div className="p-3.5 bg-neutral-50 dark:bg-neutral-850 rounded-2xl border border-neutral-200/80 dark:border-neutral-800 flex items-center gap-3.5">
+                <div className="cert-text-box cert-spotlight-box p-3.5 bg-neutral-100 dark:bg-zinc-800 rounded-2xl border border-neutral-200 dark:border-white/20 flex items-center gap-3.5 shadow-2xs">
                   <div className="relative">
                     <img
                       src={user.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120'}
@@ -479,11 +451,11 @@ export const VerifiedBadge: React.FC<VerifiedBadgeProps> = ({
                         {renderBadgeSvg(16, 'w-4 h-4')}
                       </span>
                     </div>
-                    <p className="text-xs text-neutral-400 truncate">
+                    <p className="cert-subtext text-xs text-neutral-500 dark:text-neutral-300 truncate">
                       @{user.username} • Account ID: #{user.id}
                     </p>
-                    <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5 flex items-center gap-1">
-                      <Calendar size={11} />
+                    <p className="cert-subtext text-[11px] text-neutral-600 dark:text-neutral-300 mt-0.5 flex items-center gap-1">
+                      <Calendar size={11} className="text-purple-600 dark:text-purple-400" />
                       <span>
                         {user.verifiedAt
                           ? `Authenticated on ${formatExactDateTime(user.verifiedAt)}`
@@ -496,36 +468,36 @@ export const VerifiedBadge: React.FC<VerifiedBadgeProps> = ({
 
               {/* Certificate Details Grid */}
               <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="p-2.5 rounded-xl bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200/70 dark:border-neutral-800">
-                  <span className="text-[10px] text-neutral-400 uppercase tracking-wider block">Badge Tier</span>
-                  <span className={`font-bold mt-0.5 inline-flex items-center gap-1 ${config.text}`}>
-                    <span className="w-1.5 h-1.5 rounded-full bg-current" />
+                <div className="cert-text-box cert-detail-box p-2.5 rounded-xl bg-neutral-100 dark:bg-zinc-800 border border-neutral-200 dark:border-white/20 shadow-2xs">
+                  <span className="cert-subtext text-[10px] text-neutral-500 dark:text-neutral-300 uppercase tracking-wider font-semibold block">Badge Tier</span>
+                  <span className={`font-bold mt-0.5 inline-flex items-center gap-1 text-neutral-900 dark:text-white`}>
+                    <span className="w-1.5 h-1.5 rounded-full bg-purple-500 dark:bg-purple-400" />
                     <span>{config.label}</span>
                   </span>
                 </div>
 
-                <div className="p-2.5 rounded-xl bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200/70 dark:border-neutral-800">
-                  <span className="text-[10px] text-neutral-400 uppercase tracking-wider block">Security Status</span>
-                  <span className="font-bold text-emerald-600 dark:text-emerald-400 mt-0.5 inline-flex items-center gap-1">
-                    <CheckCircle2 size={12} />
+                <div className="cert-text-box cert-detail-box p-2.5 rounded-xl bg-neutral-100 dark:bg-zinc-800 border border-neutral-200 dark:border-white/20 shadow-2xs">
+                  <span className="cert-subtext text-[10px] text-neutral-500 dark:text-neutral-300 uppercase tracking-wider font-semibold block">Security Status</span>
+                  <span className="cert-accent-green font-bold text-emerald-600 dark:text-emerald-400 mt-0.5 inline-flex items-center gap-1">
+                    <CheckCircle2 size={12} className="text-emerald-500 dark:text-emerald-400" />
                     <span>Active & Protected</span>
                   </span>
                 </div>
 
-                <div className="col-span-2 p-2.5 rounded-xl bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200/70 dark:border-neutral-800 flex items-center justify-between">
+                <div className="cert-text-box cert-detail-box col-span-2 p-2.5 rounded-xl bg-neutral-100 dark:bg-zinc-800 border border-neutral-200 dark:border-white/20 flex items-center justify-between shadow-2xs">
                   <div className="min-w-0">
-                    <span className="text-[10px] text-neutral-400 uppercase tracking-wider block">Registry Certificate ID</span>
-                    <span className="font-mono font-semibold text-neutral-700 dark:text-neutral-300 text-[11px] truncate block">
+                    <span className="cert-subtext text-[10px] text-neutral-500 dark:text-neutral-300 uppercase tracking-wider font-semibold block">Registry Certificate ID</span>
+                    <span className="font-mono font-semibold text-neutral-900 dark:text-white text-[11px] truncate block">
                       {certId}
                     </span>
                   </div>
                   <button
                     onClick={copyCertToClipboard}
-                    className="p-1.5 rounded-lg hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-500 dark:text-neutral-300 transition-colors cursor-pointer flex-shrink-0"
+                    className="p-1.5 rounded-lg bg-neutral-200/80 hover:bg-neutral-300 dark:bg-zinc-700 dark:hover:bg-zinc-600 text-neutral-700 dark:text-white transition-colors cursor-pointer flex-shrink-0 border border-transparent dark:border-white/20"
                     title="Copy Certificate ID"
                   >
                     {copiedCertId ? (
-                      <Check size={14} className="text-emerald-500" />
+                      <Check size={14} className="text-emerald-500 dark:text-emerald-400" />
                     ) : (
                       <Copy size={14} />
                     )}
@@ -534,44 +506,36 @@ export const VerifiedBadge: React.FC<VerifiedBadgeProps> = ({
               </div>
 
               {/* Verification Criteria & Proofs */}
-              <div className="space-y-2 text-xs text-neutral-600 dark:text-neutral-300 bg-neutral-50/80 dark:bg-neutral-850/80 p-3.5 rounded-2xl border border-neutral-200/60 dark:border-neutral-800">
+              <div className="cert-text-box cert-proof-box space-y-2 text-xs bg-neutral-100 dark:bg-zinc-800 p-3.5 rounded-2xl border border-neutral-200 dark:border-white/20 shadow-2xs">
                 <div className="flex items-center gap-1.5 font-bold text-neutral-900 dark:text-white text-xs">
-                  <Fingerprint size={14} className="text-purple-600" />
+                  <Fingerprint size={14} className="text-purple-600 dark:text-purple-400" />
                   <span>Authentication Criteria Met</span>
                 </div>
-                <p className="text-[11px] leading-relaxed text-neutral-500 dark:text-neutral-400">
+                <p className="cert-subtext text-[11px] leading-relaxed text-neutral-600 dark:text-neutral-200">
                   {config.desc}
                 </p>
 
-                <div className="space-y-1.5 pt-2 border-t border-neutral-200/60 dark:border-neutral-750 text-[11px]">
-                  <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-medium">
-                    <ShieldCheck size={13} className="flex-shrink-0" />
+                <div className="space-y-1.5 pt-2 border-t border-neutral-200 dark:border-white/15 text-[11px]">
+                  <div className="cert-accent-green flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-medium">
+                    <ShieldCheck size={13} className="flex-shrink-0 text-emerald-500 dark:text-emerald-400" />
                     <span>Unique Sequential ID Registered & Locked</span>
                   </div>
-                  <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-medium">
-                    <UserCheck size={13} className="flex-shrink-0" />
+                  <div className="cert-accent-green flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-medium">
+                    <UserCheck size={13} className="flex-shrink-0 text-emerald-500 dark:text-emerald-400" />
                     <span>Username Reserved Against Impersonation & Clones</span>
                   </div>
-                  <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-medium">
-                    <Sparkles size={13} className="flex-shrink-0" />
+                  <div className="cert-accent-green flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-medium">
+                    <Sparkles size={13} className="flex-shrink-0 text-emerald-500 dark:text-emerald-400" />
                     <span>Account in Good Standing with Zero Policy Infractions</span>
                   </div>
                 </div>
               </div>
 
               {/* Action Buttons */}
-              <div className="pt-1 flex items-center gap-2">
-                <button
-                  onClick={shareCertificate}
-                  className="flex-1 py-2.5 px-3 rounded-xl bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-750 text-neutral-700 dark:text-neutral-200 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95 border border-neutral-200 dark:border-neutral-700"
-                >
-                  <Share2 size={13} />
-                  <span>{copiedLink ? 'Link Copied!' : 'Share Proof'}</span>
-                </button>
-
+              <div className="pt-1 flex items-center">
                 <button
                   onClick={() => setIsModalOpen(false)}
-                  className="flex-1 py-2.5 px-3 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-semibold shadow-md shadow-purple-600/20 active:scale-95 transition-all cursor-pointer text-center"
+                  className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-semibold shadow-md shadow-purple-600/20 active:scale-95 transition-all cursor-pointer text-center"
                 >
                   Done
                 </button>

@@ -77,6 +77,8 @@ export const AdminPanel: React.FC = () => {
     reports,
     adminToggleVerify,
     adminUpdateVerificationBadge,
+    adminApproveVerificationApplication,
+    adminRejectVerificationApplication,
     adminToggleBan,
     adminIssueWarning,
     adminSendNotice,
@@ -97,8 +99,21 @@ export const AdminPanel: React.FC = () => {
 
   // Admin Navigation Tabs
   const [activeAdminTab, setActiveAdminTab] = useState<
-    'moderation' | 'users' | 'posts' | 'analytics' | 'broadcast' | 'audit'
+    'moderation' | 'applicants' | 'users' | 'posts' | 'analytics' | 'broadcast' | 'audit'
   >('moderation');
+
+  // Badge Applicants State
+  const [applicantSearch, setApplicantSearch] = useState('');
+  const [applicantFilter, setApplicantFilter] = useState<'all' | 'pending' | 'verified' | 'rejected'>('all');
+  const [applicantCategoryFilter, setApplicantCategoryFilter] = useState('all');
+  const [reviewingApplicant, setReviewingApplicant] = useState<User | null>(null);
+  const [reviewTier, setReviewTier] = useState<BadgeVariant>('blue');
+  const [reviewShape, setReviewShape] = useState<BadgeShape>('starburst');
+  const [reviewLabel, setReviewLabel] = useState('Verified Creator');
+  const [reviewAdminNotes, setReviewAdminNotes] = useState('');
+  const [rejectingApplicant, setRejectingApplicant] = useState<User | null>(null);
+  const [rejectReason, setRejectReason] = useState('Identity and proof documents could not be verified.');
+  const [applicantSuccessToast, setApplicantSuccessToast] = useState<string | null>(null);
 
   // Admin User Search & Filter & Sort
   const [adminSearch, setAdminSearch] = useState('');
@@ -640,6 +655,101 @@ export const AdminPanel: React.FC = () => {
     return reports.filter(r => r.reportedUserId === detailedUser.id);
   }, [reports, detailedUser]);
 
+  // Badge Applicants calculations
+  const allApplicants = useMemo(() => {
+    return users.filter(u => u.verificationApplication !== undefined || u.verificationStatus === 'pending');
+  }, [users]);
+
+  const pendingApplicantsCount = useMemo(() => {
+    return users.filter(u => u.verificationStatus === 'pending').length;
+  }, [users]);
+
+  const filteredApplicants = useMemo(() => {
+    return allApplicants.filter(u => {
+      const app = u.verificationApplication;
+      const status = u.verificationStatus;
+
+      // Status filter
+      if (applicantFilter === 'pending' && status !== 'pending') return false;
+      if (applicantFilter === 'verified' && !u.isVerified && status !== 'verified') return false;
+      if (applicantFilter === 'rejected' && status !== 'rejected') return false;
+
+      // Category filter
+      if (applicantCategoryFilter !== 'all') {
+        if (app?.category !== applicantCategoryFilter) return false;
+      }
+
+      // Search filter
+      if (applicantSearch.trim()) {
+        const query = applicantSearch.toLowerCase().trim();
+        const matchName = u.name.toLowerCase().includes(query);
+        const matchUsername = u.username.toLowerCase().includes(query);
+        const matchRealName = app?.realName?.toLowerCase().includes(query) || false;
+        const matchPurpose = app?.purpose?.toLowerCase().includes(query) || false;
+        const matchCategory = app?.category?.toLowerCase().includes(query) || false;
+        const matchDoc = app?.documentNumber?.toLowerCase().includes(query) || false;
+        return matchName || matchUsername || matchRealName || matchPurpose || matchCategory || matchDoc;
+      }
+
+      return true;
+    });
+  }, [allApplicants, applicantFilter, applicantCategoryFilter, applicantSearch]);
+
+  const openApplicantReviewModal = (user: User) => {
+    setReviewingApplicant(user);
+    const app = user.verificationApplication;
+    setReviewTier(app?.requestedTier || user.badgeVariant || 'blue');
+    setReviewShape(user.badgeShape || 'starburst');
+    setReviewLabel(app?.requestedLabel || user.customBadgeLabel || 'Verified Creator');
+    setReviewAdminNotes(app?.reviewNotes || '');
+  };
+
+  const handleConfirmApplicantBadge = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reviewingApplicant) return;
+
+    adminApproveVerificationApplication(
+      reviewingApplicant.id,
+      reviewTier,
+      reviewShape,
+      reviewLabel.trim() || undefined,
+      reviewAdminNotes.trim() || undefined
+    );
+
+    addAuditLog(
+      'Verified Badge Granted',
+      `Approved verification for @${reviewingApplicant.username} (#${reviewingApplicant.id}). Set tier: ${reviewTier.toUpperCase()} (${reviewShape}), label: "${reviewLabel}". Details confirmed.`,
+      'verify',
+      `@${reviewingApplicant.username}`
+    );
+
+    setApplicantSuccessToast(`Badge granted! @${reviewingApplicant.username} is now verified with ${reviewTier.toUpperCase()} badge.`);
+    setReviewingApplicant(null);
+    setTimeout(() => setApplicantSuccessToast(null), 3500);
+  };
+
+  const handleConfirmRejectApplicant = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!rejectingApplicant) return;
+
+    adminRejectVerificationApplication(
+      rejectingApplicant.id,
+      rejectReason.trim() || 'Verification details could not be verified by administration.'
+    );
+
+    addAuditLog(
+      'Declined Verification Request',
+      `Declined application for @${rejectingApplicant.username} (#${rejectingApplicant.id}). Reason: "${rejectReason}".`,
+      'warning',
+      `@${rejectingApplicant.username}`
+    );
+
+    setApplicantSuccessToast(`Application declined for @${rejectingApplicant.username}. User notified.`);
+    setRejectingApplicant(null);
+    setRejectReason('Identity and proof documents could not be verified.');
+    setTimeout(() => setApplicantSuccessToast(null), 3500);
+  };
+
   return (
     <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-150">
       <div className="relative w-full max-w-5xl bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl border border-neutral-200 dark:border-white/20 overflow-hidden flex flex-col max-h-[96vh]">
@@ -756,11 +866,19 @@ export const AdminPanel: React.FC = () => {
           /* Logged In Admin Dashboard */
           <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
             {/* Top Stat Cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-7 gap-2">
               <div className="bg-neutral-50 dark:bg-neutral-800/70 p-3 rounded-xl border border-neutral-200 dark:border-white/20">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-300">Users</p>
                 <p className="text-base font-bold text-neutral-900 dark:text-white">{platformStats.totalUsers}</p>
                 <p className="text-[10px] text-neutral-400">Registered</p>
+              </div>
+
+              <div className="bg-neutral-50 dark:bg-neutral-800/70 p-3 rounded-xl border border-neutral-200 dark:border-white/20">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-300">Applicants</p>
+                <p className={`text-base font-bold ${pendingApplicantsCount > 0 ? 'text-purple-600 dark:text-purple-400' : 'text-neutral-900 dark:text-white'}`}>
+                  {allApplicants.length}
+                </p>
+                <p className="text-[10px] text-neutral-400">{pendingApplicantsCount} Pending</p>
               </div>
 
               <div className="bg-neutral-50 dark:bg-neutral-800/70 p-3 rounded-xl border border-neutral-200 dark:border-white/20">
@@ -819,6 +937,27 @@ export const AdminPanel: React.FC = () => {
                     {pendingReportsCount}
                   </span>
                 )}
+              </button>
+
+              <button
+                onClick={() => setActiveAdminTab('applicants')}
+                className={`px-3 py-1.5 rounded-lg font-semibold transition-colors flex items-center gap-1.5 flex-shrink-0 cursor-pointer ${
+                  activeAdminTab === 'applicants'
+                    ? 'bg-neutral-900 dark:bg-neutral-700 text-white border border-transparent dark:border-white/30'
+                    : 'text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white'
+                }`}
+              >
+                <ShieldCheck size={13} className="text-purple-500" />
+                <span>Badge Applicants</span>
+                {pendingApplicantsCount > 0 ? (
+                  <span className="px-1.5 py-0.2 bg-purple-600 text-white rounded-full text-[9px] font-bold animate-pulse">
+                    {pendingApplicantsCount}
+                  </span>
+                ) : allApplicants.length > 0 ? (
+                  <span className="px-1.5 py-0.2 bg-neutral-200 dark:bg-neutral-700 text-neutral-700 dark:text-neutral-300 rounded-full text-[9px] font-semibold">
+                    {allApplicants.length}
+                  </span>
+                ) : null}
               </button>
 
               <button
@@ -1067,6 +1206,396 @@ export const AdminPanel: React.FC = () => {
                                 </button>
                               </div>
                             )}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* TAB: Badge Applicants & Verification Requests */}
+            {activeAdminTab === 'applicants' && (
+              <div className="space-y-3.5 text-xs">
+                {/* Success Toast */}
+                {applicantSuccessToast && (
+                  <div className="p-3 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 rounded-xl flex items-center gap-2 animate-in fade-in duration-150">
+                    <CheckCircle2 size={16} className="text-emerald-500 flex-shrink-0" />
+                    <span className="font-medium">{applicantSuccessToast}</span>
+                  </div>
+                )}
+
+                {/* Banner & Explanation */}
+                <div className="bg-gradient-to-r from-purple-900/30 to-indigo-900/30 p-3.5 rounded-2xl border border-purple-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                  <div className="space-y-0.5">
+                    <h3 className="font-bold text-sm text-neutral-900 dark:text-white flex items-center gap-2">
+                      <ShieldCheck size={16} className="text-purple-400" />
+                      <span>Verification Badge Applicants Queue</span>
+                    </h3>
+                    <p className="text-[11px] text-neutral-600 dark:text-neutral-300">
+                      Review user applications submitted via Settings. Confirm applicant identity, purpose, category, and 100+ followers requirement before setting their official badge.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <div className="px-2.5 py-1 rounded-xl bg-purple-500/20 border border-purple-500/30 text-purple-700 dark:text-purple-300 text-[11px] font-bold">
+                      {pendingApplicantsCount} Pending Review
+                    </div>
+                    <div className="px-2.5 py-1 rounded-xl bg-neutral-200/60 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 text-[11px] font-bold">
+                      {allApplicants.length} Total Applications
+                    </div>
+                  </div>
+                </div>
+
+                {/* Search & Filter Controls */}
+                <div className="bg-neutral-50 dark:bg-neutral-800/60 p-3 rounded-xl border border-neutral-200 dark:border-white/20 space-y-2.5">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                    <div className="relative flex-1">
+                      <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
+                      <input
+                        type="text"
+                        placeholder="Search applicants by name, username, real name, category, or purpose..."
+                        value={applicantSearch}
+                        onChange={e => setApplicantSearch(e.target.value)}
+                        className="w-full pl-8 pr-3 py-1.5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-lg text-xs text-neutral-900 dark:text-white placeholder:text-neutral-400 focus:outline-none focus:ring-1 focus:ring-purple-600"
+                      />
+                    </div>
+
+                    {/* Category Filter */}
+                    <div className="flex items-center gap-1.5">
+                      <Filter size={13} className="text-neutral-400" />
+                      <select
+                        value={applicantCategoryFilter}
+                        onChange={e => setApplicantCategoryFilter(e.target.value)}
+                        className="p-1.5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-lg text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-1 focus:ring-purple-600 cursor-pointer"
+                      >
+                        <option value="all">All Categories</option>
+                        <option value="Content Creator">Content Creator</option>
+                        <option value="Artist / Musician">Artist / Musician</option>
+                        <option value="Software Developer / Tech">Software Developer / Tech</option>
+                        <option value="Business / Brand">Business / Brand</option>
+                        <option value="Journalist / Media">Journalist / Media</option>
+                        <option value="Public Figure">Public Figure</option>
+                        <option value="Gaming & Esports">Gaming & Esports</option>
+                        <option value="Education">Education</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Status Filter Pills */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none text-[11px]">
+                    <button
+                      onClick={() => setApplicantFilter('all')}
+                      className={`px-3 py-1 rounded-lg font-semibold transition-colors cursor-pointer flex-shrink-0 ${
+                        applicantFilter === 'all'
+                          ? 'bg-neutral-900 dark:bg-neutral-700 text-white'
+                          : 'bg-white dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 border border-neutral-200 dark:border-neutral-700 hover:text-neutral-900 dark:hover:text-white'
+                      }`}
+                    >
+                      All Applicants ({allApplicants.length})
+                    </button>
+                    <button
+                      onClick={() => setApplicantFilter('pending')}
+                      className={`px-3 py-1 rounded-lg font-semibold transition-colors cursor-pointer flex-shrink-0 flex items-center gap-1.5 ${
+                        applicantFilter === 'pending'
+                          ? 'bg-amber-600 text-white shadow-xs'
+                          : 'bg-white dark:bg-neutral-900 text-amber-600 dark:text-amber-400 border border-neutral-200 dark:border-neutral-700 hover:bg-amber-50 dark:hover:bg-amber-950/30'
+                      }`}
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
+                      <span>Pending Review ({pendingApplicantsCount})</span>
+                    </button>
+                    <button
+                      onClick={() => setApplicantFilter('verified')}
+                      className={`px-3 py-1 rounded-lg font-semibold transition-colors cursor-pointer flex-shrink-0 ${
+                        applicantFilter === 'verified'
+                          ? 'bg-emerald-600 text-white'
+                          : 'bg-white dark:bg-neutral-900 text-emerald-600 dark:text-emerald-400 border border-neutral-200 dark:border-neutral-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30'
+                      }`}
+                    >
+                      Verified & Badged ({allApplicants.filter(u => u.isVerified || u.verificationStatus === 'verified').length})
+                    </button>
+                    <button
+                      onClick={() => setApplicantFilter('rejected')}
+                      className={`px-3 py-1 rounded-lg font-semibold transition-colors cursor-pointer flex-shrink-0 ${
+                        applicantFilter === 'rejected'
+                          ? 'bg-rose-600 text-white'
+                          : 'bg-white dark:bg-neutral-900 text-rose-600 dark:text-rose-400 border border-neutral-200 dark:border-neutral-700 hover:bg-rose-50 dark:hover:bg-rose-950/30'
+                      }`}
+                    >
+                      Declined ({allApplicants.filter(u => u.verificationStatus === 'rejected').length})
+                    </button>
+                  </div>
+                </div>
+
+                {/* Applicants Cards List */}
+                <div className="space-y-3">
+                  {filteredApplicants.length === 0 ? (
+                    <div className="bg-white dark:bg-neutral-900 p-8 rounded-2xl border border-neutral-200 dark:border-white/20 text-center space-y-2.5">
+                      <div className="w-12 h-12 mx-auto rounded-2xl bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 flex items-center justify-center">
+                        <Award size={24} />
+                      </div>
+                      <h4 className="font-bold text-sm text-neutral-900 dark:text-white">
+                        No verification applicants found
+                      </h4>
+                      <p className="text-[11px] text-neutral-500 dark:text-neutral-400 max-w-sm mx-auto leading-relaxed">
+                        {allApplicants.length === 0
+                          ? 'When users meet the 100 followers condition and apply for verification in Settings, their applications will appear here for admin review and badge assignment.'
+                          : 'No applicants match your current search or filter criteria. Try selecting another filter above.'}
+                      </p>
+                    </div>
+                  ) : (
+                    filteredApplicants.map(applicant => {
+                      const app = applicant.verificationApplication || {
+                        submittedAt: applicant.createdAt || new Date().toISOString(),
+                        purpose: 'Account authenticity and identity protection',
+                        category: 'Content Creator',
+                        realName: applicant.name,
+                        documentType: 'Profile Credentials',
+                        documentNumber: `ID-${applicant.id}`,
+                        links: applicant.website ? [applicant.website] : [],
+                        requestedTier: applicant.badgeVariant || 'blue',
+                        requestedLabel: applicant.customBadgeLabel || 'Verified Creator',
+                        followerCountAtSubmission: applicant.followers?.length || 0,
+                        status: applicant.verificationStatus,
+                      };
+
+                      const currentFollowers = applicant.followers?.length || 0;
+                      const has100Followers = currentFollowers >= 100;
+
+                      return (
+                        <div
+                          key={`applicant-${applicant.id}`}
+                          className="bg-white dark:bg-neutral-900 rounded-2xl p-4 border border-neutral-200 dark:border-neutral-800 space-y-3.5 shadow-xs hover:border-neutral-300 dark:hover:border-neutral-700 transition-colors"
+                        >
+                          {/* Card Header */}
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-neutral-100 dark:border-neutral-800 pb-3">
+                            <div className="flex items-center gap-3">
+                              <UserAvatar user={applicant} size="md" showVerifiedCorner={true} />
+                              <div>
+                                <div className="flex items-center gap-1.5 font-bold text-sm text-neutral-900 dark:text-white">
+                                  <span>{applicant.name}</span>
+                                  {applicant.isVerified && <VerifiedBadge size="sm" user={applicant} />}
+                                </div>
+                                <p className="text-[11px] text-neutral-400">
+                                  @{applicant.username} • User ID: #{applicant.id} • {applicant.email}
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Status Badge & Timestamp */}
+                            <div className="flex items-center gap-2 self-start sm:self-center">
+                              {applicant.verificationStatus === 'pending' ? (
+                                <span className="px-2.5 py-1 rounded-full bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 text-[10px] font-bold flex items-center gap-1.5 animate-pulse">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping" />
+                                  <span>Pending Review</span>
+                                </span>
+                              ) : applicant.isVerified || applicant.verificationStatus === 'verified' ? (
+                                <span className="px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-[10px] font-bold flex items-center gap-1">
+                                  <Check size={11} />
+                                  <span>Verified ({applicant.badgeVariant?.toUpperCase() || 'BLUE'})</span>
+                                </span>
+                              ) : (
+                                <span className="px-2.5 py-1 rounded-full bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 text-[10px] font-bold flex items-center gap-1">
+                                  <X size={11} />
+                                  <span>Declined</span>
+                                </span>
+                              )}
+
+                              <span className="text-[10px] text-neutral-400 font-mono">
+                                {formatRelativeTime(app.submittedAt)}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Follower Requirement Verification Bar */}
+                          <div className="p-2.5 rounded-xl bg-neutral-50 dark:bg-neutral-800/80 border border-neutral-200/80 dark:border-neutral-700/80 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                            <div className="flex items-center gap-2">
+                              <div className={`w-5 h-5 rounded-md flex items-center justify-center font-bold text-[10px] ${
+                                has100Followers ? 'bg-emerald-500 text-white' : 'bg-amber-500 text-white'
+                              }`}>
+                                {has100Followers ? '✓' : '!'}
+                              </div>
+                              <span className="font-semibold text-neutral-800 dark:text-white text-[11px]">
+                                Follower Requirement Check:
+                              </span>
+                              <span className="font-mono font-bold text-neutral-900 dark:text-white text-[11px]">
+                                {currentFollowers} Followers
+                              </span>
+                            </div>
+
+                            <div>
+                              {has100Followers ? (
+                                <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                                  <CheckCircle2 size={12} />
+                                  <span>Requirement Met (100+ followers satisfied)</span>
+                                </span>
+                              ) : (
+                                <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                                  <AlertTriangle size={12} />
+                                  <span>Below Requirement ({100 - currentFollowers} more needed)</span>
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Info Boxes Grid - high contrast dark mode styled */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 text-[11px]">
+                            {/* Category Box */}
+                            <div className="p-2.5 rounded-xl bg-neutral-50 dark:bg-neutral-800 border border-neutral-200/80 dark:border-neutral-700 space-y-0.5">
+                              <span className="text-[10px] font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider block">
+                                Category
+                              </span>
+                              <p className="font-bold text-neutral-900 dark:text-white">
+                                {app.category}
+                              </p>
+                            </div>
+
+                            {/* Real Name Box */}
+                            <div className="p-2.5 rounded-xl bg-neutral-50 dark:bg-neutral-800 border border-neutral-200/80 dark:border-neutral-700 space-y-0.5">
+                              <span className="text-[10px] font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider block">
+                                Real / Legal Name
+                              </span>
+                              <p className="font-bold text-neutral-900 dark:text-white">
+                                {app.realName}
+                              </p>
+                            </div>
+
+                            {/* Document Proof Box */}
+                            <div className="p-2.5 rounded-xl bg-neutral-50 dark:bg-neutral-800 border border-neutral-200/80 dark:border-neutral-700 space-y-0.5">
+                              <span className="text-[10px] font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider block">
+                                Document Proof
+                              </span>
+                              <p className="font-bold text-neutral-900 dark:text-white truncate" title={app.documentType}>
+                                {app.documentType || 'Official ID'}
+                              </p>
+                              {app.documentNumber && (
+                                <p className="text-[10px] font-mono text-neutral-500 dark:text-neutral-400">
+                                  Ref: {app.documentNumber}
+                                </p>
+                              )}
+                            </div>
+
+                            {/* Requested Tier & Label Box */}
+                            <div className="p-2.5 rounded-xl bg-neutral-50 dark:bg-neutral-800 border border-neutral-200/80 dark:border-neutral-700 space-y-0.5">
+                              <span className="text-[10px] font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider block">
+                                Requested Badge
+                              </span>
+                              <p className="font-bold text-purple-600 dark:text-purple-400 flex items-center gap-1">
+                                <Sparkles size={11} />
+                                <span>{app.requestedTier?.toUpperCase() || 'BLUE'} Tier</span>
+                              </p>
+                              <p className="text-[10px] text-neutral-600 dark:text-neutral-300 truncate">
+                                "{app.requestedLabel || 'Verified Creator'}"
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Purpose of Verification Box */}
+                          <div className="p-3 rounded-xl bg-purple-50/50 dark:bg-neutral-800 border-l-4 border-l-purple-600 border-y border-r border-neutral-200/80 dark:border-neutral-700 space-y-1">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-purple-700 dark:text-purple-400 block">
+                              Purpose of Verification
+                            </span>
+                            <p className="text-neutral-800 dark:text-neutral-100 text-xs leading-relaxed italic">
+                              "{app.purpose}"
+                            </p>
+                          </div>
+
+                          {/* Online Proof Links Box (if present) */}
+                          {app.links && app.links.length > 0 && (
+                            <div className="p-2.5 rounded-xl bg-neutral-50 dark:bg-neutral-800 border border-neutral-200/80 dark:border-neutral-700 space-y-1">
+                              <span className="text-[10px] font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider block">
+                                Verified Online Links & Portfolios
+                              </span>
+                              <div className="flex flex-wrap gap-2">
+                                {app.links.map((link, idx) => (
+                                  <a
+                                    key={`link-${idx}`}
+                                    href={link.startsWith('http') ? link : `https://${link}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="px-2.5 py-1 rounded-lg bg-white dark:bg-neutral-700 border border-neutral-200 dark:border-neutral-600 text-purple-600 dark:text-purple-300 font-medium text-[11px] hover:underline flex items-center gap-1.5"
+                                  >
+                                    <ExternalLink size={11} />
+                                    <span className="max-w-xs truncate">{link}</span>
+                                  </a>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Additional Applicant Notes (if present) */}
+                          {app.notes && (
+                            <div className="p-2.5 rounded-xl bg-neutral-50 dark:bg-neutral-800 border border-neutral-200/80 dark:border-neutral-700 space-y-0.5">
+                              <span className="text-[10px] font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider block">
+                                Applicant's Notes
+                              </span>
+                              <p className="text-neutral-700 dark:text-neutral-300 text-[11px]">
+                                {app.notes}
+                              </p>
+                            </div>
+                          )}
+
+                          {/* Review History (if already reviewed) */}
+                          {app.reviewedAt && (
+                            <div className="p-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800/90 border border-neutral-200 dark:border-neutral-700 text-[11px] space-y-1">
+                              <div className="flex items-center justify-between text-neutral-500 dark:text-neutral-400 text-[10px]">
+                                <span>Reviewed on {formatExactDateTime(app.reviewedAt)}</span>
+                                <span className="font-semibold text-neutral-700 dark:text-neutral-300">
+                                  Status: {applicant.verificationStatus.toUpperCase()}
+                                </span>
+                              </div>
+                              {app.reviewNotes && (
+                                <p className="text-neutral-800 dark:text-neutral-200 italic">
+                                  Admin Note: "{app.reviewNotes}"
+                                </p>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Admin Action Buttons */}
+                          <div className="flex flex-wrap items-center justify-end gap-2 pt-1 border-t border-neutral-100 dark:border-neutral-800">
+                            <button
+                              type="button"
+                              onClick={() => openUserProfile(applicant.id)}
+                              className="px-3 py-1.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-750 text-neutral-700 dark:text-neutral-300 font-semibold text-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                            >
+                              <ExternalLink size={12} />
+                              <span>View Public Profile</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => openDetailedProfile(applicant)}
+                              className="px-3 py-1.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-750 text-neutral-700 dark:text-neutral-300 font-semibold text-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                            >
+                              <Eye size={12} />
+                              <span>Inspect Details</span>
+                            </button>
+
+                            {applicant.verificationStatus === 'pending' && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setRejectingApplicant(applicant);
+                                  setRejectReason('Identity or proof credentials could not be confirmed.');
+                                }}
+                                className="px-3 py-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900/60 font-semibold text-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                              >
+                                <X size={12} />
+                                <span>Decline Application</span>
+                              </button>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={() => openApplicantReviewModal(applicant)}
+                              className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs shadow-sm hover:shadow-md hover:shadow-purple-500/20 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
+                            >
+                              <ShieldCheck size={14} />
+                              <span>{applicant.isVerified ? 'Update Official Badge' : 'Review & Set Badge'}</span>
+                            </button>
                           </div>
                         </div>
                       );
@@ -3116,6 +3645,480 @@ export const AdminPanel: React.FC = () => {
                   className="flex-1 py-2.5 px-4 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-semibold rounded-xl text-xs shadow-md shadow-purple-600/20 active:scale-95 transition-all cursor-pointer"
                 >
                   Save Badge Credentials
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 🏅 APPLICANT REVIEW & SET BADGE MODAL */}
+      {/* ========================================================================= */}
+      {reviewingApplicant && (
+        <div
+          className="fixed inset-0 z-70 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150"
+          onClick={() => setReviewingApplicant(null)}
+        >
+          <div
+            className="w-full max-w-lg bg-white dark:bg-neutral-900 rounded-3xl border border-neutral-200 dark:border-white/20 shadow-2xl flex flex-col max-h-[92vh] overflow-hidden text-xs animate-in zoom-in-95 duration-150"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="px-5 py-3.5 border-b border-neutral-100 dark:border-neutral-800 flex items-center justify-between sticky top-0 bg-white dark:bg-neutral-900 z-10">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400">
+                  <Award size={18} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-neutral-900 dark:text-white">
+                    Review Application & Set Badge
+                  </h3>
+                  <p className="text-[11px] text-neutral-400">
+                    Confirm applicant details and assign official badge credentials
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setReviewingApplicant(null)}
+                className="p-1 rounded-lg text-neutral-400 hover:text-neutral-600 dark:hover:text-white cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <form onSubmit={handleConfirmApplicantBadge} className="p-4 sm:p-5 overflow-y-auto space-y-4">
+              {/* Applicant Identity & Follower Requirement Banner */}
+              <div className="p-3.5 bg-neutral-50 dark:bg-neutral-800/80 rounded-2xl border border-neutral-200/80 dark:border-neutral-700/80 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <UserAvatar
+                    user={{
+                      ...reviewingApplicant,
+                      badgeVariant: reviewTier,
+                      badgeShape: reviewShape,
+                      customBadgeLabel: reviewLabel || undefined,
+                      isVerified: true,
+                    }}
+                    size="md"
+                    showVerifiedCorner={true}
+                  />
+                  <div>
+                    <div className="flex items-center gap-1.5 font-bold text-xs text-neutral-900 dark:text-white">
+                      <span>{reviewingApplicant.name}</span>
+                      <VerifiedBadge
+                        size="sm"
+                        variant={reviewTier}
+                        shape={reviewShape}
+                        user={{
+                          ...reviewingApplicant,
+                          badgeVariant: reviewTier,
+                          badgeShape: reviewShape,
+                          customBadgeLabel: reviewLabel || undefined,
+                          isVerified: true,
+                        }}
+                        interactive={false}
+                      />
+                    </div>
+                    <p className="text-[11px] text-neutral-400">
+                      @{reviewingApplicant.username} • ID: #{reviewingApplicant.id}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="text-right">
+                  <span className="px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-[10px] font-bold flex items-center gap-1">
+                    <CheckCircle2 size={11} />
+                    <span>{reviewingApplicant.followers?.length || 0} Followers</span>
+                  </span>
+                  <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-medium block mt-0.5">
+                    100+ Requirement Met
+                  </span>
+                </div>
+              </div>
+
+              {/* Submitted Application Information Card */}
+              <div className="p-3.5 rounded-2xl bg-neutral-50 dark:bg-neutral-850 border border-neutral-200 dark:border-neutral-750 space-y-2.5">
+                <div className="flex items-center justify-between border-b border-neutral-200/70 dark:border-neutral-750 pb-2">
+                  <span className="font-bold text-[11px] text-neutral-700 dark:text-neutral-300 uppercase tracking-wider flex items-center gap-1.5">
+                    <FileText size={13} className="text-purple-500" />
+                    <span>Submitted Application Details</span>
+                  </span>
+                  <span className="text-[10px] text-neutral-400 font-mono">
+                    {reviewingApplicant.verificationApplication?.submittedAt
+                      ? formatExactDateTime(reviewingApplicant.verificationApplication.submittedAt)
+                      : 'Submitted'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-[11px]">
+                  <div>
+                    <span className="text-[10px] text-neutral-400 block">Category:</span>
+                    <strong className="text-neutral-800 dark:text-white">
+                      {reviewingApplicant.verificationApplication?.category || 'Content Creator'}
+                    </strong>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-neutral-400 block">Real Legal Name:</span>
+                    <strong className="text-neutral-800 dark:text-white">
+                      {reviewingApplicant.verificationApplication?.realName || reviewingApplicant.name}
+                    </strong>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-neutral-400 block">Document Proof:</span>
+                    <span className="text-neutral-700 dark:text-neutral-300">
+                      {reviewingApplicant.verificationApplication?.documentType || 'Official ID'}
+                      {reviewingApplicant.verificationApplication?.documentNumber
+                        ? ` (${reviewingApplicant.verificationApplication.documentNumber})`
+                        : ''}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-neutral-400 block">Requested Badge:</span>
+                    <span className="text-purple-600 dark:text-purple-400 font-semibold">
+                      {reviewingApplicant.verificationApplication?.requestedTier?.toUpperCase() || 'BLUE'} • "
+                      {reviewingApplicant.verificationApplication?.requestedLabel || 'Verified'}"
+                    </span>
+                  </div>
+                </div>
+
+                {/* Purpose Callout */}
+                <div className="p-2.5 rounded-xl bg-white dark:bg-neutral-800 border border-neutral-200/60 dark:border-neutral-700 text-[11px]">
+                  <span className="text-[10px] font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider block mb-0.5">
+                    Purpose of Verification:
+                  </span>
+                  <p className="text-neutral-800 dark:text-neutral-100 italic leading-relaxed">
+                    "{reviewingApplicant.verificationApplication?.purpose || 'Account authenticity & creator verification'}"
+                  </p>
+                </div>
+
+                {/* Links */}
+                {reviewingApplicant.verificationApplication?.links &&
+                  reviewingApplicant.verificationApplication.links.length > 0 && (
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-neutral-400 block">Online Links & Portfolios:</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {reviewingApplicant.verificationApplication.links.map((link, idx) => (
+                          <a
+                            key={`modal-link-${idx}`}
+                            href={link.startsWith('http') ? link : `https://${link}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-2 py-0.5 rounded-lg bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-purple-600 dark:text-purple-400 hover:underline flex items-center gap-1 text-[10px]"
+                          >
+                            <ExternalLink size={10} />
+                            <span className="max-w-[200px] truncate">{link}</span>
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                {/* Notes */}
+                {reviewingApplicant.verificationApplication?.notes && (
+                  <div className="text-[11px] text-neutral-600 dark:text-neutral-300">
+                    <span className="text-[10px] text-neutral-400 block">Applicant Notes:</span>
+                    <span>{reviewingApplicant.verificationApplication.notes}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Set Official Badge Form Controls */}
+              <div className="space-y-3.5 pt-1">
+                <h4 className="font-bold text-xs text-neutral-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
+                  <ShieldCheck size={14} className="text-purple-500" />
+                  <span>Set Official Badge Configuration</span>
+                </h4>
+
+                {/* Tier Choice */}
+                <div>
+                  <label className="block font-semibold text-neutral-700 dark:text-neutral-300 mb-1.5 text-[11px]">
+                    Badge Tier & Color
+                  </label>
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                    {[
+                      { id: 'blue', label: 'Blue', desc: 'Standard Verified', color: 'from-blue-500 to-cyan-500' },
+                      { id: 'gold', label: 'Gold', desc: 'Staff / Leadership', color: 'from-amber-400 to-amber-600' },
+                      { id: 'purple', label: 'Purple', desc: 'Creator Partner', color: 'from-purple-500 to-indigo-600' },
+                      { id: 'green', label: 'Green', desc: 'Trusted Member', color: 'from-emerald-500 to-teal-600' },
+                      { id: 'ruby', label: 'Ruby', desc: 'Special Elite', color: 'from-rose-500 to-red-600' },
+                    ].map(t => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => setReviewTier(t.id as BadgeVariant)}
+                        className={`p-2 rounded-xl border text-left cursor-pointer transition-all ${
+                          reviewTier === t.id
+                            ? 'border-purple-600 bg-purple-50/70 dark:bg-purple-950/40 ring-1 ring-purple-500'
+                            : 'border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-850 hover:border-neutral-300 dark:hover:border-neutral-700'
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <VerifiedBadge size="sm" variant={t.id as BadgeVariant} interactive={false} />
+                          <span className="font-bold text-xs text-neutral-900 dark:text-white">{t.label}</span>
+                        </div>
+                        <span className="text-[10px] text-neutral-500 dark:text-neutral-400 block truncate">
+                          {t.desc}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Shape Choice */}
+                <div>
+                  <label className="block font-semibold text-neutral-700 dark:text-neutral-300 mb-1.5 text-[11px]">
+                    Emblem Shape
+                  </label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {[
+                      { id: 'starburst', name: 'Starburst' },
+                      { id: 'shield', name: 'Shield' },
+                      { id: 'circle', name: 'Circle' },
+                      { id: 'gem', name: 'Gem' },
+                    ].map(s => (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => setReviewShape(s.id as BadgeShape)}
+                        className={`p-2 rounded-xl border text-center cursor-pointer transition-all ${
+                          reviewShape === s.id
+                            ? 'border-purple-600 bg-purple-50/70 dark:bg-purple-950/40 ring-1 ring-purple-500 font-bold text-neutral-900 dark:text-white'
+                            : 'border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-850 hover:bg-neutral-50 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-300'
+                        }`}
+                      >
+                        <div className="w-5 h-5 mx-auto mb-1 flex items-center justify-center">
+                          <VerifiedBadge
+                            size="sm"
+                            variant={reviewTier}
+                            shape={s.id as BadgeShape}
+                            interactive={false}
+                          />
+                        </div>
+                        <span className="text-[10px] block">{s.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Custom Badge Label */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="font-semibold text-neutral-700 dark:text-neutral-300 text-[11px]">
+                      Badge Label / Official Title
+                    </label>
+                    <span className="text-[10px] text-neutral-400">Displayed on certificate & profile</span>
+                  </div>
+
+                  {/* Preset Suggestions */}
+                  <div className="flex flex-wrap gap-1 mb-1.5">
+                    {['Official Staff', 'Verified Creator', 'Verified Member', 'Lead Developer', 'VIP Partner'].map(preset => (
+                      <button
+                        key={preset}
+                        type="button"
+                        onClick={() => setReviewLabel(preset)}
+                        className={`px-2 py-0.5 rounded-md text-[10px] font-medium transition-colors cursor-pointer ${
+                          reviewLabel === preset
+                            ? 'bg-purple-600 text-white'
+                            : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700'
+                        }`}
+                      >
+                        {preset}
+                      </button>
+                    ))}
+                  </div>
+
+                  <input
+                    type="text"
+                    placeholder="e.g. Verified Creator, Official Staff..."
+                    value={reviewLabel}
+                    onChange={e => setReviewLabel(e.target.value)}
+                    className="w-full p-2.5 bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl text-neutral-900 dark:text-white text-xs focus:outline-none focus:ring-1 focus:ring-purple-600"
+                    required
+                  />
+                </div>
+
+                {/* Admin Approval Notes */}
+                <div>
+                  <label className="block font-semibold text-neutral-700 dark:text-neutral-300 mb-1 text-[11px]">
+                    Admin Review & Certificate Notes <span className="text-neutral-400 font-normal">(Recorded on certificate)</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Identity and credentials confirmed by Alokpat Administration."
+                    value={reviewAdminNotes}
+                    onChange={e => setReviewAdminNotes(e.target.value)}
+                    className="w-full p-2.5 bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl text-neutral-900 dark:text-white text-xs focus:outline-none focus:ring-1 focus:ring-purple-600"
+                  />
+                </div>
+
+                {/* Interactive Live Preview Box */}
+                <div className="p-3 bg-gradient-to-r from-purple-50/70 to-indigo-50/70 dark:from-purple-950/30 dark:to-indigo-950/30 rounded-2xl border border-purple-200/80 dark:border-purple-800/60 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <UserAvatar
+                      user={{
+                        ...reviewingApplicant,
+                        badgeVariant: reviewTier,
+                        badgeShape: reviewShape,
+                        customBadgeLabel: reviewLabel || undefined,
+                        isVerified: true,
+                      }}
+                      size="sm"
+                      showVerifiedCorner={true}
+                    />
+                    <div>
+                      <div className="flex items-center gap-1 font-bold text-xs text-neutral-900 dark:text-white">
+                        <span>{reviewingApplicant.name}</span>
+                        <VerifiedBadge
+                          size="sm"
+                          variant={reviewTier}
+                          shape={reviewShape}
+                          user={{
+                            ...reviewingApplicant,
+                            badgeVariant: reviewTier,
+                            badgeShape: reviewShape,
+                            customBadgeLabel: reviewLabel || undefined,
+                            isVerified: true,
+                          }}
+                          interactive={false}
+                        />
+                      </div>
+                      <span className="text-[10px] text-purple-700 dark:text-purple-300 font-medium">
+                        Live Preview: {reviewLabel || 'Verified'} ({reviewTier.toUpperCase()})
+                      </span>
+                    </div>
+                  </div>
+
+                  <VerifiedBadge
+                    size="xs"
+                    variant={reviewTier}
+                    shape={reviewShape}
+                    showPill={true}
+                    pillText={reviewLabel || 'Verified'}
+                    user={{
+                      ...reviewingApplicant,
+                      badgeVariant: reviewTier,
+                      badgeShape: reviewShape,
+                      customBadgeLabel: reviewLabel || undefined,
+                      isVerified: true,
+                    }}
+                    interactive={false}
+                  />
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="pt-2 flex items-center justify-end gap-2 border-t border-neutral-100 dark:border-neutral-800">
+                <button
+                  type="button"
+                  onClick={() => setReviewingApplicant(null)}
+                  className="px-4 py-2 rounded-xl bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-750 text-neutral-700 dark:text-white font-semibold text-xs active:scale-95 transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs shadow-md shadow-purple-600/25 active:scale-95 transition-all cursor-pointer flex items-center gap-1.5"
+                >
+                  <ShieldCheck size={14} />
+                  <span>Confirm Details & Set Badge</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* ❌ DECLINE VERIFICATION APPLICATION MODAL */}
+      {/* ========================================================================= */}
+      {rejectingApplicant && (
+        <div
+          className="fixed inset-0 z-70 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150"
+          onClick={() => setRejectingApplicant(null)}
+        >
+          <div
+            className="w-full max-w-md bg-white dark:bg-neutral-900 rounded-3xl border border-rose-200 dark:border-rose-900/60 p-5 shadow-2xl space-y-3.5 text-xs animate-in zoom-in-95 duration-150"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800 pb-2.5">
+              <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400">
+                <div className="p-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/60">
+                  <X size={16} />
+                </div>
+                <h3 className="font-bold text-sm text-neutral-900 dark:text-white">
+                  Decline Verification Application
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRejectingApplicant(null)}
+                className="p-1 text-neutral-400 hover:text-neutral-600 dark:hover:text-white cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <p className="text-[11px] text-neutral-600 dark:text-neutral-300 leading-relaxed">
+              Decline verification request from <strong className="text-neutral-900 dark:text-white">@{rejectingApplicant.username}</strong> ({rejectingApplicant.name}). Please provide a reason to notify the user.
+            </p>
+
+            {/* Quick Reason Suggestions */}
+            <div className="space-y-1">
+              <span className="text-[10px] text-neutral-400 block font-semibold">Common Decline Reasons:</span>
+              <div className="flex flex-col gap-1">
+                {[
+                  'Identity and proof documents could not be confirmed.',
+                  'Insufficient online presence and public credentials.',
+                  'Incomplete or invalid portfolio links provided.',
+                  'Does not meet current community verification criteria.',
+                ].map(r => (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => setRejectReason(r)}
+                    className={`p-1.5 rounded-lg text-left text-[11px] transition-colors cursor-pointer ${
+                      rejectReason === r
+                        ? 'bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-800 font-semibold'
+                        : 'bg-neutral-50 dark:bg-neutral-800/60 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-750'
+                    }`}
+                  >
+                    • {r}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <form onSubmit={handleConfirmRejectApplicant} className="space-y-3 pt-1">
+              <div>
+                <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
+                  Reason for User Notification
+                </label>
+                <textarea
+                  rows={3}
+                  value={rejectReason}
+                  onChange={e => setRejectReason(e.target.value)}
+                  className="w-full p-2.5 bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl text-neutral-900 dark:text-white text-xs focus:outline-none focus:ring-1 focus:ring-rose-500 resize-none"
+                  required
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-1 border-t border-neutral-100 dark:border-neutral-800">
+                <button
+                  type="button"
+                  onClick={() => setRejectingApplicant(null)}
+                  className="px-3.5 py-1.5 rounded-xl bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-750 text-neutral-700 dark:text-white font-medium text-xs cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-md shadow-rose-600/25 active:scale-95 transition-all cursor-pointer flex items-center gap-1.5"
+                >
+                  <X size={13} />
+                  <span>Decline Application</span>
                 </button>
               </div>
             </form>

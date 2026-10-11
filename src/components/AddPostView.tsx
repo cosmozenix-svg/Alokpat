@@ -8,6 +8,7 @@ import {
   Globe,
   Upload,
   Layers,
+  AlertCircle,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { UserAvatar } from './UserAvatar';
@@ -29,6 +30,7 @@ export const AddPostView: React.FC = () => {
   // Post settings
   const [hideComments, setHideComments] = useState(false);
   const [isAIPost, setIsAIPost] = useState(false);
+  const [postError, setPostError] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -40,7 +42,7 @@ export const AddPostView: React.FC = () => {
             <Plus size={22} />
           </div>
           <h3 className="font-semibold text-sm text-neutral-900 dark:text-white">
-            Sign in to share a post
+            Sign in to publish a post
           </h3>
           <p className="text-xs text-neutral-500 dark:text-neutral-200">
             You need an account to publish text, photos, and keyword tags on Alokpat.
@@ -148,8 +150,9 @@ export const AddPostView: React.FC = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setPostError(null);
     if (!caption.trim() && images.length === 0) {
-      alert('Please enter a caption or upload an image before posting.');
+      setPostError('Please enter some text or add a photo before publishing.');
       return;
     }
 
@@ -175,7 +178,14 @@ export const AddPostView: React.FC = () => {
 
   return (
     <div className="pb-24 pt-2">
-      <div className="bg-white dark:bg-neutral-900 rounded-2xl p-4 border border-neutral-200 dark:border-neutral-800">
+      <div className="bg-white dark:bg-neutral-900 rounded-2xl p-4 border border-neutral-200 dark:border-neutral-800 space-y-3.5">
+        {postError && (
+          <div className="p-2.5 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 rounded-xl text-rose-700 dark:text-rose-300 text-xs flex items-center gap-2 animate-in fade-in">
+            <AlertCircle size={14} className="text-rose-500 flex-shrink-0" />
+            <span>{postError}</span>
+          </div>
+        )}
+
         {/* Creator Header */}
         <div className="flex items-center gap-2.5 mb-3.5">
           <UserAvatar user={currentUser} size="md" />
@@ -195,7 +205,7 @@ export const AddPostView: React.FC = () => {
           <div>
             <textarea
               rows={4}
-              placeholder="What's happening? Share thoughts or paste links..."
+              placeholder="What's happening? Express thoughts or paste links..."
               value={caption}
               onChange={e => setCaption(e.target.value)}
               className="w-full p-3 bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200 dark:border-neutral-700/80 rounded-xl text-xs sm:text-sm text-neutral-900 dark:text-white placeholder-neutral-400 focus:outline-none focus:ring-1 focus:ring-purple-600 resize-none transition-colors"

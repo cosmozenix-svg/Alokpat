@@ -262,6 +262,38 @@ html.dark body, .dark body {
   color: #ffffff !important;
 }
 
+/* Authenticity Certificate Modal text boxes in dark mode: solid dark background with white border and pure white text */
+.dark .cert-modal-card {
+  background-color: #18181b !important;
+  border: 1px solid rgba(255, 255, 255, 0.25) !important;
+}
+
+.dark .cert-text-box,
+.dark .cert-spotlight-box,
+.dark .cert-detail-box,
+.dark .cert-proof-box {
+  background-color: #27272a !important;
+  border: 1px solid rgba(255, 255, 255, 0.25) !important;
+  color: #ffffff !important;
+}
+
+.dark .cert-text-box *,
+.dark .cert-spotlight-box *,
+.dark .cert-detail-box *,
+.dark .cert-proof-box * {
+  color: #ffffff !important;
+}
+
+/* Secondary labels inside certificate boxes in dark mode */
+.dark .cert-subtext {
+  color: rgba(255, 255, 255, 0.75) !important;
+}
+
+.dark .cert-accent-green,
+.dark .cert-accent-green * {
+  color: #34d399 !important; /* emerald-400 */
+}
+
 /* Subtle clean scrollbars */
 ::-webkit-scrollbar {
   width: 6px;

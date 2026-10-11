@@ -15,11 +15,19 @@ import {
   CheckCircle2,
   AlertCircle,
   ShieldCheck,
+  Award,
+  ExternalLink,
+  X,
+  Check,
+  Users,
+  Sparkles,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { TermsModal } from './TermsModal';
 import { UserAvatar } from './UserAvatar';
 import { VerifiedBadge } from './VerifiedBadge';
+import { BadgeVariant } from '../types';
+import { formatExactDateTime, formatRelativeTime } from '../utils/formatters';
 
 export const SettingsView: React.FC = () => {
   const {
@@ -31,10 +39,28 @@ export const SettingsView: React.FC = () => {
     setIsAuthModalOpen,
     setAuthMode,
     changePassword,
-    setIsAdminPanelOpen,
+    requestVerification,
+    simulateFollowers,
   } = useApp();
 
   const [isTermsOpen, setIsTermsOpen] = useState(false);
+  const [eligibilityNotice, setEligibilityNotice] = useState<string | null>(null);
+
+  // Verification Application Form State
+  const [isVerifyModalOpen, setIsVerifyModalOpen] = useState(false);
+  const [verifyCategory, setVerifyCategory] = useState('Content Creator');
+  const [verifyPurpose, setVerifyPurpose] = useState('');
+  const [verifyRealName, setVerifyRealName] = useState(currentUser?.name || '');
+  const [verifyDocType, setVerifyDocType] = useState('Government-Issued Photo ID');
+  const [verifyDocNumber, setVerifyDocNumber] = useState('');
+  const [verifyPrimaryLink, setVerifyPrimaryLink] = useState('');
+  const [verifySecondaryLink, setVerifySecondaryLink] = useState('');
+  const [verifyRequestedLabel, setVerifyRequestedLabel] = useState('Verified Creator');
+  const [verifyRequestedTier, setVerifyRequestedTier] = useState<BadgeVariant>('blue');
+  const [verifyNotes, setVerifyNotes] = useState('');
+  const [verifyError, setVerifyError] = useState<string | null>(null);
+  const [verifySuccess, setVerifySuccess] = useState<string | null>(null);
+  const [isSubmittingVerify, setIsSubmittingVerify] = useState(false);
 
   // Change Password State
   const [isPasswordSectionOpen, setIsPasswordSectionOpen] = useState(false);
@@ -88,6 +114,67 @@ export const SettingsView: React.FC = () => {
       setTimeout(() => {
         setPasswordSuccess(null);
         setIsPasswordSectionOpen(false);
+      }, 2500);
+    }
+  };
+
+  // Follower requirement count
+  const followerCount = currentUser?.followers?.length || 0;
+  const isEligibleForVerification = followerCount >= 100;
+
+  const handleOpenVerification = () => {
+    setVerifyError(null);
+    setVerifySuccess(null);
+    setVerifyRealName(currentUser?.name || '');
+    setIsVerifyModalOpen(true);
+  };
+
+  const handleVerificationSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setVerifyError(null);
+    setVerifySuccess(null);
+
+    if (followerCount < 100) {
+      setVerifyError(
+        `Eligibility Requirement: A user must have at least 100 followers to apply for the verification badge. You currently have ${followerCount} follower${followerCount === 1 ? '' : 's'}.`
+      );
+      return;
+    }
+
+    if (!verifyPurpose.trim()) {
+      setVerifyError('Please specify the purpose and justification for verification.');
+      return;
+    }
+
+    if (!verifyRealName.trim()) {
+      setVerifyError('Please provide your full real or legal entity name.');
+      return;
+    }
+
+    setIsSubmittingVerify(true);
+    const links = [verifyPrimaryLink.trim(), verifySecondaryLink.trim()].filter(Boolean);
+
+    const res = requestVerification({
+      purpose: verifyPurpose.trim(),
+      category: verifyCategory,
+      realName: verifyRealName.trim(),
+      documentType: verifyDocType,
+      documentNumber: verifyDocNumber.trim(),
+      links,
+      notes: verifyNotes.trim(),
+      requestedTier: verifyRequestedTier,
+      requestedLabel: verifyRequestedLabel.trim() || 'Verified Member',
+    });
+
+    setIsSubmittingVerify(false);
+
+    if (!res.success) {
+      setVerifyError(res.message);
+    } else {
+      setVerifySuccess(res.message);
+      setTimeout(() => {
+        setIsVerifyModalOpen(false);
+        setVerifySuccess(null);
       }, 2500);
     }
   };
@@ -294,6 +381,189 @@ export const SettingsView: React.FC = () => {
         </div>
       )}
 
+      {/* Account Verification & Badge Section */}
+      {currentUser && (
+        <div className="bg-white dark:bg-neutral-900 rounded-2xl p-4 border border-neutral-200 dark:border-neutral-800 space-y-3.5 shadow-xs">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-xl bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400">
+                <Award size={16} />
+              </div>
+              <div>
+                <h3 className="font-bold text-xs sm:text-sm text-neutral-900 dark:text-white">
+                  Account Verification
+                </h3>
+                <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                  Official badge credentials & authenticity status
+                </p>
+              </div>
+            </div>
+
+            {currentUser.isVerified ? (
+              <span className="px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold border border-emerald-200/80 dark:border-emerald-800/80 flex items-center gap-1">
+                <Check size={11} /> Verified
+              </span>
+            ) : currentUser.verificationStatus === 'pending' ? (
+              <span className="px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 text-[10px] font-bold border border-amber-200/80 dark:border-amber-800/80 flex items-center gap-1 animate-pulse">
+                Pending Review
+              </span>
+            ) : (
+              <span className="px-2 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 text-[10px] font-medium">
+                Unverified
+              </span>
+            )}
+          </div>
+
+          {/* Verification Status Card */}
+          {currentUser.isVerified ? (
+            <div className="p-3.5 rounded-xl bg-gradient-to-r from-blue-50/80 to-purple-50/80 dark:from-blue-950/30 dark:to-purple-950/30 border border-blue-200/80 dark:border-blue-900/60 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <VerifiedBadge size="md" user={currentUser} />
+                  <div>
+                    <h4 className="font-bold text-xs text-neutral-900 dark:text-white flex items-center gap-1">
+                      <span>{currentUser.customBadgeLabel || 'Official Verified Member'}</span>
+                    </h4>
+                    <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                      Tier: {currentUser.badgeVariant?.toUpperCase() || 'BLUE'} • Shape: {currentUser.badgeShape || 'Starburst'}
+                    </p>
+                  </div>
+                </div>
+                {currentUser.verifiedAt && (
+                  <span className="text-[10px] text-neutral-400 font-mono">
+                    {formatRelativeTime(currentUser.verifiedAt)}
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-neutral-600 dark:text-neutral-300 leading-relaxed">
+                Your profile has an active Authenticity Certificate registered. You can inspect your digital verification certificate anytime by tapping your badge in the profile view.
+              </p>
+            </div>
+          ) : currentUser.verificationStatus === 'pending' ? (
+            <div className="p-3.5 rounded-xl bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/60 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping" />
+                  <h4 className="font-bold text-xs text-amber-900 dark:text-amber-300">
+                    Application Pending Admin Review
+                  </h4>
+                </div>
+                <span className="text-[10px] text-amber-700 dark:text-amber-400 font-medium">
+                  Under Official Review
+                </span>
+              </div>
+
+              {currentUser.verificationApplication && (
+                <div className="p-2.5 rounded-lg bg-white/80 dark:bg-neutral-850/80 border border-amber-200/60 dark:border-amber-900/40 text-[11px] space-y-1">
+                  <div className="flex justify-between text-neutral-500 dark:text-neutral-400">
+                    <span>Category:</span>
+                    <span className="font-semibold text-neutral-800 dark:text-white">{currentUser.verificationApplication.category}</span>
+                  </div>
+                  <div className="flex justify-between text-neutral-500 dark:text-neutral-400">
+                    <span>Real Name:</span>
+                    <span className="font-semibold text-neutral-800 dark:text-white">{currentUser.verificationApplication.realName}</span>
+                  </div>
+                  <div className="text-neutral-600 dark:text-neutral-300 pt-0.5 line-clamp-2">
+                    <span className="font-medium text-neutral-500">Purpose: </span>
+                    "{currentUser.verificationApplication.purpose}"
+                  </div>
+                </div>
+              )}
+
+              <p className="text-[11px] text-amber-800 dark:text-amber-300/90 leading-relaxed">
+                Your application has been received by the Alokpat Administration team. An admin will verify the submitted information and confirm your badge tier.
+              </p>
+            </div>
+          ) : (
+            <div className="p-3.5 rounded-xl bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200/80 dark:border-neutral-750 space-y-3">
+              {/* Followers Condition Indicator */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-semibold text-neutral-800 dark:text-white flex items-center gap-1.5">
+                    <Users size={13} className="text-purple-600 dark:text-purple-400" />
+                    <span>Eligibility: 100 Followers Required</span>
+                  </span>
+                  <span className={`font-bold font-mono text-[11px] ${isEligibleForVerification ? 'text-emerald-600 dark:text-emerald-400' : 'text-neutral-500 dark:text-neutral-400'}`}>
+                    {followerCount} / 100
+                  </span>
+                </div>
+
+                {/* Progress Bar */}
+                <div className="w-full h-2 rounded-full bg-neutral-200 dark:bg-neutral-700 overflow-hidden">
+                  <div
+                    className={`h-full transition-all duration-300 rounded-full ${isEligibleForVerification ? 'bg-gradient-to-r from-emerald-500 to-green-600' : 'bg-gradient-to-r from-purple-600 to-indigo-600'}`}
+                    style={{ width: `${Math.min(100, Math.round((followerCount / 100) * 100))}%` }}
+                  />
+                </div>
+
+                {!isEligibleForVerification ? (
+                  <p className="text-[11px] text-neutral-500 dark:text-neutral-400 leading-relaxed pt-0.5">
+                    You need <strong className="text-purple-600 dark:text-purple-400">{100 - followerCount} more followers</strong> to unlock verification applications. Once you reach 100 followers, you can submit your purpose, category, and identity details.
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1 pt-0.5">
+                    <CheckCircle2 size={12} />
+                    <span>Requirement Met! You have {followerCount} followers and qualify to apply.</span>
+                  </p>
+                )}
+              </div>
+
+              {/* Action Button */}
+              {isEligibleForVerification ? (
+                <button
+                  type="button"
+                  onClick={handleOpenVerification}
+                  className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-semibold text-xs flex items-center justify-center gap-2 shadow-sm hover:shadow-md hover:shadow-purple-500/25 active:scale-95 transition-all cursor-pointer border border-purple-500/30"
+                >
+                  <ShieldCheck size={15} />
+                  <span>Apply for Verification</span>
+                </button>
+              ) : (
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEligibilityNotice(
+                        `Verification Requirement: You need at least 100 followers to apply. You currently have ${followerCount} follower${followerCount === 1 ? '' : 's'} (${100 - followerCount} more needed).`
+                      );
+                      setTimeout(() => setEligibilityNotice(null), 5000);
+                    }}
+                    className="w-full py-2.5 px-4 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-400 dark:text-neutral-500 font-semibold text-xs flex items-center justify-center gap-2 cursor-pointer border border-neutral-200 dark:border-neutral-750 opacity-80"
+                  >
+                    <Lock size={14} />
+                    <span>Apply for Verification (100 Followers Required)</span>
+                  </button>
+
+                  {eligibilityNotice && (
+                    <div className="p-2.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 rounded-xl text-[11px] text-amber-800 dark:text-amber-300 flex items-start gap-2 animate-in fade-in">
+                      <AlertCircle size={14} className="flex-shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+                      <span>{eligibilityNotice}</span>
+                    </div>
+                  )}
+
+                  {simulateFollowers && (
+                    <div className="text-center pt-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          simulateFollowers(100);
+                          setEligibilityNotice('Added test followers! You now meet the 100 followers requirement.');
+                          setTimeout(() => setEligibilityNotice(null), 3000);
+                        }}
+                        className="text-[11px] text-purple-600 dark:text-purple-400 hover:underline inline-flex items-center gap-1 bg-transparent border-none cursor-pointer font-medium"
+                      >
+                        <Sparkles size={12} />
+                        <span>Simulate 100 Followers (Dev Testing)</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Appearance Section */}
       <div className="bg-white dark:bg-neutral-900 rounded-2xl p-3.5 border border-neutral-200 dark:border-neutral-800 space-y-3">
         <h3 className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400">
@@ -327,24 +597,6 @@ export const SettingsView: React.FC = () => {
         <h3 className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400 mb-1">
           About & Policies
         </h3>
-
-        <button
-          onClick={() => setIsAdminPanelOpen(true)}
-          className="w-full flex items-center justify-between py-2.5 text-left bg-neutral-50/60 hover:bg-neutral-100 dark:bg-neutral-800/80 dark:hover:bg-neutral-750 px-2.5 rounded-xl border border-neutral-200/60 dark:border-white/20 transition-all cursor-pointer"
-        >
-          <div className="flex items-center gap-2.5">
-            <ShieldCheck size={15} className="text-purple-600 dark:text-purple-400" />
-            <div>
-              <span className="text-xs font-semibold text-neutral-800 dark:text-white block">
-                Admin & Moderation Panel
-              </span>
-              <span className="text-[10px] text-neutral-400">
-                Access admin controls or type /admin in URL
-              </span>
-            </div>
-          </div>
-          <ChevronRight size={14} className="text-neutral-400" />
-        </button>
 
         <button
           onClick={() => setIsTermsOpen(true)}
@@ -400,6 +652,254 @@ export const SettingsView: React.FC = () => {
           <LogOut size={13} />
           <span>Sign Out of @{currentUser.username}</span>
         </button>
+      )}
+
+      {/* Apply for Verification Modal */}
+      {isVerifyModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-150"
+          onClick={() => setIsVerifyModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-lg bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-2xl flex flex-col max-h-[92vh] overflow-hidden animate-in zoom-in-95 duration-150"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="px-4 py-3 border-b border-neutral-100 dark:border-neutral-800 flex items-center justify-between sticky top-0 bg-white dark:bg-neutral-900 z-10">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-xl bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400">
+                  <ShieldCheck size={17} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-neutral-900 dark:text-white">
+                    Apply for Verification Badge
+                  </h3>
+                  <p className="text-[11px] text-neutral-400">
+                    Official Authenticity Credentials Application
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsVerifyModalOpen(false)}
+                className="p-1 rounded-lg text-neutral-400 hover:text-neutral-600 dark:hover:text-white"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <form onSubmit={handleVerificationSubmit} className="p-4 overflow-y-auto space-y-3.5 text-xs">
+              {/* Follower Requirement Confirmation Banner */}
+              <div className="p-3 rounded-xl bg-purple-50/70 dark:bg-purple-950/30 border border-purple-200/80 dark:border-purple-800/60 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-lg bg-purple-600 text-white flex items-center justify-center font-bold text-[10px]">
+                    ✓
+                  </div>
+                  <div>
+                    <p className="font-bold text-xs text-neutral-900 dark:text-white">
+                      Follower Requirement Confirmed
+                    </p>
+                    <p className="text-[11px] text-neutral-500 dark:text-neutral-300">
+                      Eligible with {followerCount} followers (100+ required)
+                    </p>
+                  </div>
+                </div>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300 font-bold">
+                  PASS
+                </span>
+              </div>
+
+              {verifyError && (
+                <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 text-rose-700 dark:text-rose-300 rounded-xl text-xs flex items-start gap-2">
+                  <AlertCircle size={15} className="flex-shrink-0 mt-0.5 text-rose-500" />
+                  <span>{verifyError}</span>
+                </div>
+              )}
+
+              {verifySuccess && (
+                <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/60 text-emerald-700 dark:text-emerald-300 rounded-xl text-xs flex items-center gap-2">
+                  <CheckCircle2 size={15} className="text-emerald-500 flex-shrink-0" />
+                  <span>{verifySuccess}</span>
+                </div>
+              )}
+
+              {/* Info Box 1: Category */}
+              <div>
+                <label className="block text-[11px] font-bold text-neutral-700 dark:text-neutral-300 mb-1">
+                  Creator / Account Category <span className="text-purple-600">*</span>
+                </label>
+                <select
+                  value={verifyCategory}
+                  onChange={e => setVerifyCategory(e.target.value)}
+                  className="w-full p-2.5 bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl text-neutral-900 dark:text-white text-xs focus:outline-none focus:ring-1 focus:ring-purple-600"
+                  required
+                >
+                  <option value="Content Creator">Content Creator & Influencer</option>
+                  <option value="Artist / Musician">Artist / Musician / Designer</option>
+                  <option value="Software Developer / Tech">Software Developer & Tech</option>
+                  <option value="Business / Brand">Business / Brand / Organization</option>
+                  <option value="Journalist / Media">Journalist / News & Media</option>
+                  <option value="Public Figure">Public Figure / Speaker</option>
+                  <option value="Gaming & Esports">Gaming & Esports</option>
+                  <option value="Education">Education & Academic</option>
+                  <option value="Other">Other Community Role</option>
+                </select>
+              </div>
+
+              {/* Info Box 2: Purpose */}
+              <div>
+                <label className="block text-[11px] font-bold text-neutral-700 dark:text-neutral-300 mb-1">
+                  Purpose of Verification <span className="text-purple-600">*</span>
+                </label>
+                <textarea
+                  rows={3}
+                  value={verifyPurpose}
+                  onChange={e => setVerifyPurpose(e.target.value)}
+                  placeholder="Explain why your account should be verified (e.g. proof of authenticity, preventing clones or impersonators, community trust)..."
+                  className="w-full p-2.5 bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl text-neutral-900 dark:text-white text-xs resize-none focus:outline-none focus:ring-1 focus:ring-purple-600"
+                  required
+                />
+              </div>
+
+              {/* Info Box 3: Full Legal / Real Name */}
+              <div>
+                <label className="block text-[11px] font-bold text-neutral-700 dark:text-neutral-300 mb-1">
+                  Full Real / Legal Entity Name <span className="text-purple-600">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={verifyRealName}
+                  onChange={e => setVerifyRealName(e.target.value)}
+                  placeholder="e.g. Johnathan Doe or Acme Corporation"
+                  className="w-full p-2.5 bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl text-neutral-900 dark:text-white text-xs focus:outline-none focus:ring-1 focus:ring-purple-600"
+                  required
+                />
+              </div>
+
+              {/* Info Box 4: Document Type & Number */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div>
+                  <label className="block text-[11px] font-bold text-neutral-700 dark:text-neutral-300 mb-1">
+                    Identity Proof Document Type
+                  </label>
+                  <select
+                    value={verifyDocType}
+                    onChange={e => setVerifyDocType(e.target.value)}
+                    className="w-full p-2.5 bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl text-neutral-900 dark:text-white text-xs focus:outline-none focus:ring-1 focus:ring-purple-600"
+                  >
+                    <option value="Government-Issued Photo ID">Government-Issued Photo ID</option>
+                    <option value="Business Registration / License">Business Registration / License</option>
+                    <option value="Official Corporate Domain Email">Official Corporate Domain Email</option>
+                    <option value="Public Press & Media Coverage">Public Press & Media Coverage</option>
+                    <option value="Portfolio & Intellectual Property">Portfolio & IP Ownership</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-neutral-700 dark:text-neutral-300 mb-1">
+                    Document Ref / Verification Notes
+                  </label>
+                  <input
+                    type="text"
+                    value={verifyDocNumber}
+                    onChange={e => setVerifyDocNumber(e.target.value)}
+                    placeholder="Document reference ID or notes"
+                    className="w-full p-2.5 bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl text-neutral-900 dark:text-white text-xs focus:outline-none focus:ring-1 focus:ring-purple-600"
+                  />
+                </div>
+              </div>
+
+              {/* Info Box 5: Online Proof Links */}
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-bold text-neutral-700 dark:text-neutral-300">
+                  Online Proof & Official Links
+                </label>
+                <input
+                  type="url"
+                  value={verifyPrimaryLink}
+                  onChange={e => setVerifyPrimaryLink(e.target.value)}
+                  placeholder="Primary Website / Portfolio URL (https://...)"
+                  className="w-full p-2.5 bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl text-neutral-900 dark:text-white text-xs focus:outline-none focus:ring-1 focus:ring-purple-600"
+                />
+                <input
+                  type="url"
+                  value={verifySecondaryLink}
+                  onChange={e => setVerifySecondaryLink(e.target.value)}
+                  placeholder="Supporting Social Profile or Article URL (Optional)"
+                  className="w-full p-2.5 bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl text-neutral-900 dark:text-white text-xs focus:outline-none focus:ring-1 focus:ring-purple-600"
+                />
+              </div>
+
+              {/* Info Box 6: Requested Badge Preference */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div>
+                  <label className="block text-[11px] font-bold text-neutral-700 dark:text-neutral-300 mb-1">
+                    Requested Badge Label
+                  </label>
+                  <input
+                    type="text"
+                    value={verifyRequestedLabel}
+                    onChange={e => setVerifyRequestedLabel(e.target.value)}
+                    placeholder="e.g. Verified Creator, Official Staff..."
+                    className="w-full p-2.5 bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl text-neutral-900 dark:text-white text-xs focus:outline-none focus:ring-1 focus:ring-purple-600"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-neutral-700 dark:text-neutral-300 mb-1">
+                    Requested Badge Style
+                  </label>
+                  <select
+                    value={verifyRequestedTier}
+                    onChange={e => setVerifyRequestedTier(e.target.value as BadgeVariant)}
+                    className="w-full p-2.5 bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl text-neutral-900 dark:text-white text-xs focus:outline-none focus:ring-1 focus:ring-purple-600"
+                  >
+                    <option value="blue">Blue (Standard Official)</option>
+                    <option value="gold">Gold (VIP / Leadership)</option>
+                    <option value="purple">Purple (Creative Partner)</option>
+                    <option value="green">Green (Verified Contributor)</option>
+                    <option value="ruby">Ruby (Special Elite)</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Info Box 7: Additional Authenticity Notes */}
+              <div>
+                <label className="block text-[11px] font-bold text-neutral-700 dark:text-neutral-300 mb-1">
+                  Additional Notes for Admin Review
+                </label>
+                <textarea
+                  rows={2}
+                  value={verifyNotes}
+                  onChange={e => setVerifyNotes(e.target.value)}
+                  placeholder="Any other details to help the administrators confirm your identity..."
+                  className="w-full p-2.5 bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl text-neutral-900 dark:text-white text-xs resize-none focus:outline-none focus:ring-1 focus:ring-purple-600"
+                />
+              </div>
+
+              {/* Form Action Buttons */}
+              <div className="pt-2 flex items-center justify-end gap-2 border-t border-neutral-100 dark:border-neutral-800">
+                <button
+                  type="button"
+                  onClick={() => setIsVerifyModalOpen(false)}
+                  className="px-4 py-2 rounded-xl bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-750 text-neutral-700 dark:text-white font-semibold text-xs active:scale-95 transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingVerify}
+                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs shadow-md shadow-purple-600/20 active:scale-95 transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  <ShieldCheck size={14} />
+                  <span>{isSubmittingVerify ? 'Submitting Application...' : 'Submit Application'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
       <TermsModal isOpen={isTermsOpen} onClose={() => setIsTermsOpen(false)} />

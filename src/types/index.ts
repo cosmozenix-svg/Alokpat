@@ -3,6 +3,23 @@ export type VerificationStatus = 'unverified' | 'pending' | 'verified' | 'reject
 export type BadgeVariant = 'blue' | 'gold' | 'purple' | 'green' | 'ruby';
 export type BadgeShape = 'starburst' | 'shield' | 'circle' | 'gem';
 
+export interface VerificationApplication {
+  submittedAt: string;
+  purpose: string; // "Purpose" e.g. Why they are applying
+  category: string; // "Categories" e.g. Content Creator, Artist, Tech/Developer, etc.
+  realName: string; // Full legal / identity name
+  documentType?: string; // Identity proof document type
+  documentNumber?: string; // Document ref/details
+  links: string[]; // Portfolio, official websites, press, social media links
+  notes?: string; // Authenticity details & notes
+  requestedTier?: BadgeVariant;
+  requestedLabel?: string;
+  followerCountAtSubmission: number;
+  status: VerificationStatus; // 'pending' | 'verified' | 'rejected'
+  reviewedAt?: string;
+  reviewNotes?: string;
+}
+
 export type ReactionType = 'heart' | 'fire' | 'laugh' | 'clap' | 'wow' | 'sad';
 
 export interface User {
@@ -17,6 +34,7 @@ export interface User {
   bio: string;
   isVerified: boolean;
   verificationStatus: VerificationStatus; // 'unverified' | 'pending' | 'verified' | 'rejected'
+  verificationApplication?: VerificationApplication;
   verifiedAt?: string;
   badgeVariant?: BadgeVariant;
   badgeShape?: BadgeShape;

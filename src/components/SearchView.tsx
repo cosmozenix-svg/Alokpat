@@ -11,6 +11,9 @@ import {
   Image as ImageIcon,
   CheckCircle2,
   ArrowRight,
+  Users,
+  Sparkles,
+  Clock,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { UserAvatar } from './UserAvatar';
@@ -20,6 +23,7 @@ import { PostCard } from './PostCard';
 type SortOption = 'relevance' | 'newest' | 'oldest' | 'popularity';
 type DateFilterOption = 'all' | '24h' | 'week' | 'month';
 type ContentTypeOption = 'all' | 'users' | 'posts' | 'tags' | 'media_only';
+type DiscoverTabOption = 'all' | 'creators' | 'posts';
 
 export const SearchView: React.FC = () => {
   const { users, posts, searchTerm, setSearchTerm, openUserProfile, toggleFollow, currentUser } = useApp();
@@ -30,6 +34,27 @@ export const SearchView: React.FC = () => {
   const [dateRange, setDateRange] = useState<DateFilterOption>('all');
   const [verifiedOnly, setVerifiedOnly] = useState(false);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [discoverSection, setDiscoverSection] = useState<DiscoverTabOption>('all');
+
+  // Top 10 Creators sorted strictly by followers count descending
+  const topCreators = useMemo(() => {
+    return [...users]
+      .sort((a, b) => {
+        const countA = a.followers?.length || 0;
+        const countB = b.followers?.length || 0;
+        if (countB !== countA) return countB - countA;
+        if (a.isVerified !== b.isVerified) return a.isVerified ? -1 : 1;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      })
+      .slice(0, 10);
+  }, [users]);
+
+  // Suggested recently published posts
+  const recentSuggestedPosts = useMemo(() => {
+    return [...posts]
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 10);
+  }, [posts]);
 
   // Helper date filtering
   const isWithinDateRange = (isoString: string, range: DateFilterOption) => {
@@ -334,64 +359,183 @@ export const SearchView: React.FC = () => {
 
       {/* When Empty: Show Discover Info */}
       {!searchTerm.trim() ? (
-        <div className="space-y-3">
-          {users.length > 0 ? (
-            <div className="bg-white dark:bg-neutral-900 rounded-2xl p-4 border border-neutral-200 dark:border-neutral-800">
-              <h3 className="text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-2.5">
-                Discover Creators
-              </h3>
-              <div className="space-y-2">
-                {users.map(u => {
-                  const isFollowing = currentUser?.following.includes(u.id);
-                  const isSelf = currentUser?.id === u.id;
+        <div className="space-y-4">
+          {/* Quick Discover Filter Tabs */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+            <button
+              onClick={() => setDiscoverSection('all')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all active:scale-95 cursor-pointer flex items-center gap-1.5 flex-shrink-0 ${
+                discoverSection === 'all'
+                  ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-xs'
+                  : 'bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-750 text-neutral-600 dark:text-neutral-300'
+              }`}
+            >
+              <span>Explore All</span>
+            </button>
+            <button
+              onClick={() => setDiscoverSection('creators')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all active:scale-95 cursor-pointer flex items-center gap-1.5 flex-shrink-0 ${
+                discoverSection === 'creators'
+                  ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-xs'
+                  : 'bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-750 text-neutral-600 dark:text-neutral-300'
+              }`}
+            >
+              <Users size={12} />
+              <span>Discover Creators ({topCreators.length})</span>
+            </button>
+            <button
+              onClick={() => setDiscoverSection('posts')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all active:scale-95 cursor-pointer flex items-center gap-1.5 flex-shrink-0 ${
+                discoverSection === 'posts'
+                  ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-xs'
+                  : 'bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-750 text-neutral-600 dark:text-neutral-300'
+              }`}
+            >
+              <Sparkles size={12} />
+              <span>Discover Posts ({recentSuggestedPosts.length})</span>
+            </button>
+          </div>
 
-                  return (
-                    <div
-                      key={u.id}
-                      className="flex items-center justify-between p-2 rounded-xl hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors"
-                    >
-                      <div
-                        className="flex items-center gap-2.5 cursor-pointer flex-1 min-w-0"
-                        onClick={() => openUserProfile(u.id)}
-                      >
-                        <UserAvatar user={u} size="sm" />
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1 text-xs font-semibold text-neutral-900 dark:text-neutral-100 truncate">
-                            <span>{u.name}</span>
-                            {u.isVerified && <VerifiedBadge size="sm" user={u} />}
-                          </div>
-                          <p className="text-[11px] text-neutral-400 truncate">
-                            @{u.username} • ID: #{u.id}
-                          </p>
-                        </div>
+          {/* Section 1: Discover Creators (Top 10 Accounts with Most Followers) */}
+          {(discoverSection === 'all' || discoverSection === 'creators') && (
+            <div>
+              {topCreators.length > 0 ? (
+                <div className="bg-white dark:bg-neutral-900 rounded-2xl p-4 border border-neutral-200 dark:border-neutral-800 shadow-xs">
+                  <div className="flex items-center justify-between mb-3 pb-2.5 border-b border-neutral-100 dark:border-neutral-800">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 rounded-xl bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400">
+                        <Users size={16} />
                       </div>
-
-                      {!isSelf && (
-                        <button
-                          onClick={() => toggleFollow(u.id)}
-                          className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold active:scale-95 transition-all cursor-pointer ${
-                            isFollowing
-                              ? 'bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/30 dark:hover:text-rose-400 border border-neutral-200/80 dark:border-neutral-700'
-                              : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-xs hover:shadow-md hover:shadow-purple-500/25 border border-purple-500/30'
-                          }`}
-                        >
-                          {isFollowing ? 'Following' : 'Follow'}
-                        </button>
-                      )}
+                      <div>
+                        <h3 className="text-xs sm:text-sm font-bold text-neutral-900 dark:text-white">
+                          Discover Creators
+                        </h3>
+                        <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                          Top creators with the most followers
+                        </p>
+                      </div>
                     </div>
-                  );
-                })}
-              </div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200/80 dark:border-purple-800/80">
+                      Top 10
+                    </span>
+                  </div>
+
+                  <div className="divide-y divide-neutral-100 dark:divide-neutral-800/70">
+                    {topCreators.map((u, index) => {
+                      const isFollowing = currentUser?.following.includes(u.id);
+                      const isSelf = currentUser?.id === u.id;
+                      const followerCount = u.followers?.length || 0;
+
+                      return (
+                        <div
+                          key={u.id}
+                          className="flex items-center justify-between py-2.5 px-1 hover:bg-neutral-50 dark:hover:bg-neutral-800/40 rounded-xl transition-colors"
+                        >
+                          <div
+                            className="flex items-center gap-2.5 cursor-pointer flex-1 min-w-0"
+                            onClick={() => openUserProfile(u.id)}
+                          >
+                            {/* Ranking Indicator */}
+                            <div
+                              className={`w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${
+                                index === 0
+                                  ? 'bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border border-amber-300/60 dark:border-amber-700/60'
+                                  : index === 1
+                                  ? 'bg-neutral-200 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border border-neutral-300/60 dark:border-neutral-700/60'
+                                  : index === 2
+                                  ? 'bg-orange-100 dark:bg-orange-950 text-orange-700 dark:text-orange-300 border border-orange-300/60 dark:border-orange-700/60'
+                                  : 'text-neutral-400 dark:text-neutral-500 font-mono text-[11px]'
+                              }`}
+                              title={`Rank #${index + 1}`}
+                            >
+                              {index < 3 ? `#${index + 1}` : `${index + 1}`}
+                            </div>
+
+                            <UserAvatar user={u} size="md" />
+
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1 text-xs font-semibold text-neutral-900 dark:text-neutral-100 truncate">
+                                <span className="truncate">{u.name}</span>
+                                {u.isVerified && <VerifiedBadge size="sm" user={u} />}
+                              </div>
+                              <div className="flex items-center gap-1.5 text-[11px] text-neutral-500 dark:text-neutral-400">
+                                <span>@{u.username}</span>
+                                <span>•</span>
+                                <span className="font-semibold text-neutral-700 dark:text-neutral-300">
+                                  {followerCount === 1 ? '1 follower' : `${followerCount.toLocaleString()} followers`}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {!isSelf && (
+                            <button
+                              onClick={() => toggleFollow(u.id)}
+                              className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold active:scale-95 transition-all cursor-pointer flex-shrink-0 ml-2 ${
+                                isFollowing
+                                  ? 'bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/30 dark:hover:text-rose-400 border border-neutral-200/80 dark:border-neutral-700'
+                                  : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-xs hover:shadow-md hover:shadow-purple-500/25 border border-purple-500/30'
+                              }`}
+                            >
+                              {isFollowing ? 'Following' : 'Follow'}
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-box empty-state-box bg-white dark:bg-neutral-800/80 rounded-2xl p-6 text-center border border-neutral-200 dark:border-neutral-700 shadow-xs">
+                  <Users size={22} className="mx-auto text-neutral-400 dark:text-neutral-300 mb-2" />
+                  <p className="text-xs text-neutral-600 dark:text-neutral-200 font-medium">
+                    No creators found yet.
+                  </p>
+                </div>
+              )}
             </div>
-          ) : (
-            <div className="text-box empty-state-box bg-white dark:bg-neutral-700/80 rounded-2xl p-8 text-center border border-neutral-200 dark:border-white/30 shadow-xs">
-              <SearchIcon size={24} className="mx-auto text-neutral-400 dark:text-neutral-300 mb-2" />
-              <h3 className="font-semibold text-sm text-neutral-900 dark:text-white">
-                Search Alokpat
-              </h3>
-              <p className="text-xs text-neutral-500 dark:text-neutral-200 mt-1 max-w-xs mx-auto">
-                Search users by their unique ID (e.g. 10001), @username, or search posts by keywords.
-              </p>
+          )}
+
+          {/* Section 2: Discover Posts (Suggested Recently Published Posts) */}
+          {(discoverSection === 'all' || discoverSection === 'posts') && (
+            <div className="space-y-3 pt-1">
+              <div className="flex items-center justify-between px-1">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400">
+                    <Sparkles size={16} />
+                  </div>
+                  <div>
+                    <h3 className="text-xs sm:text-sm font-bold text-neutral-900 dark:text-white">
+                      Discover Posts
+                    </h3>
+                    <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                      Suggested recently published posts
+                    </p>
+                  </div>
+                </div>
+                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/80 flex items-center gap-1">
+                  <Clock size={10} />
+                  Recent
+                </span>
+              </div>
+
+              {recentSuggestedPosts.length > 0 ? (
+                <div className="space-y-3">
+                  {recentSuggestedPosts.map(p => (
+                    <PostCard key={p.id} post={p} onTagClick={t => setSearchTerm(t)} />
+                  ))}
+                </div>
+              ) : (
+                <div className="text-box empty-state-box bg-white dark:bg-neutral-800/80 rounded-2xl p-8 text-center border border-neutral-200 dark:border-neutral-700 shadow-xs">
+                  <Sparkles size={22} className="mx-auto text-neutral-400 dark:text-neutral-300 mb-2" />
+                  <h4 className="font-semibold text-xs sm:text-sm text-neutral-900 dark:text-white">
+                    No suggested posts yet
+                  </h4>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-200 mt-1">
+                    Recently published posts will appear here.
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </div>
