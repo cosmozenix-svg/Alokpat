@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Search as SearchIcon,
   X,
@@ -14,19 +14,83 @@ import {
   Users,
   Sparkles,
   Clock,
+  Trash2,
+  History,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { UserAvatar } from './UserAvatar';
 import { VerifiedBadge } from './VerifiedBadge';
 import { PostCard } from './PostCard';
+import { safeGetStorage, safeSetStorage } from '../utils/storage';
 
 type SortOption = 'relevance' | 'newest' | 'oldest' | 'popularity';
 type DateFilterOption = 'all' | '24h' | 'week' | 'month';
 type ContentTypeOption = 'all' | 'users' | 'posts' | 'tags' | 'media_only';
 type DiscoverTabOption = 'all' | 'creators' | 'posts';
 
+const SEARCH_HISTORY_KEY = 'alokpat_recent_searches';
+
 export const SearchView: React.FC = () => {
   const { users, posts, searchTerm, setSearchTerm, openUserProfile, toggleFollow, currentUser } = useApp();
+
+  // Local storage-based search history (last 5 recent search queries)
+  const [recentSearches, setRecentSearches] = useState<string[]>(() => {
+    try {
+      const saved = safeGetStorage<string[]>(SEARCH_HISTORY_KEY, []);
+      return Array.isArray(saved) ? saved.slice(0, 5) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const saveQueryToHistory = (query: string) => {
+    const clean = query.trim();
+    if (!clean || clean.length < 2) return;
+    setRecentSearches(prev => {
+      const filtered = prev.filter(q => q.toLowerCase() !== clean.toLowerCase());
+      const updated = [clean, ...filtered].slice(0, 5);
+      safeSetStorage(SEARCH_HISTORY_KEY, updated);
+      return updated;
+    });
+  };
+
+  const removeQueryFromHistory = (queryToRemove: string, e?: React.MouseEvent) => {
+    if (e) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+    setRecentSearches(prev => {
+      const updated = prev.filter(q => q !== queryToRemove);
+      safeSetStorage(SEARCH_HISTORY_KEY, updated);
+      return updated;
+    });
+  };
+
+  const clearAllSearchHistory = () => {
+    setRecentSearches([]);
+    safeSetStorage(SEARCH_HISTORY_KEY, []);
+  };
+
+  const handleSelectHistoryQuery = (query: string) => {
+    setSearchTerm(query);
+    saveQueryToHistory(query);
+  };
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchTerm.trim()) {
+      saveQueryToHistory(searchTerm.trim());
+    }
+  };
+
+  // Auto-record query in history when user pauses typing
+  useEffect(() => {
+    if (!searchTerm.trim() || searchTerm.trim().length < 2) return;
+    const timer = setTimeout(() => {
+      saveQueryToHistory(searchTerm.trim());
+    }, 1200);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
   // Filter & Sort State
   const [contentType, setContentType] = useState<ContentTypeOption>('all');
@@ -186,7 +250,7 @@ export const SearchView: React.FC = () => {
   return (
     <div className="pb-24 pt-2">
       {/* Search Input Box */}
-      <div className="relative mb-2.5">
+      <form onSubmit={handleSearchSubmit} className="relative mb-2.5">
         <SearchIcon
           size={16}
           className="absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-400"
@@ -202,6 +266,7 @@ export const SearchView: React.FC = () => {
         <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
           {searchTerm && (
             <button
+              type="button"
               onClick={() => setSearchTerm('')}
               className="p-1 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 rounded-md"
             >
@@ -209,6 +274,7 @@ export const SearchView: React.FC = () => {
             </button>
           )}
           <button
+            type="button"
             onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
             className={`p-1 rounded-md transition-colors ${
               showAdvancedFilters || sortBy !== 'relevance' || dateRange !== 'all' || verifiedOnly
@@ -220,7 +286,31 @@ export const SearchView: React.FC = () => {
             <SlidersHorizontal size={15} />
           </button>
         </div>
-      </div>
+      </form>
+
+      {/* Quick Recent Queries Strip (when search term is active) */}
+      {recentSearches.length > 0 && searchTerm.trim() && (
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1.5 scrollbar-none mb-2 text-xs">
+          <span className="text-neutral-400 dark:text-neutral-500 flex items-center gap-1 flex-shrink-0 text-[11px] font-semibold tracking-wide pl-0.5">
+            <Clock size={11} className="text-purple-600 dark:text-purple-400" />
+            <span>Recent:</span>
+          </span>
+          {recentSearches.map(q => (
+            <button
+              key={q}
+              type="button"
+              onClick={() => handleSelectHistoryQuery(q)}
+              className={`px-2.5 py-1 rounded-xl text-xs font-medium flex-shrink-0 transition-all active:scale-95 flex items-center gap-1 cursor-pointer ${
+                searchTerm.toLowerCase() === q.toLowerCase()
+                  ? 'bg-purple-600 text-white shadow-xs font-semibold'
+                  : 'bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-300'
+              }`}
+            >
+              <span className="truncate max-w-[130px]">{q}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Advanced Filter Drawer */}
       {showAdvancedFilters && (
@@ -357,9 +447,64 @@ export const SearchView: React.FC = () => {
         </div>
       ) : null}
 
-      {/* When Empty: Show Discover Info */}
+      {/* When Empty: Show Search History & Discover Info */}
       {!searchTerm.trim() ? (
         <div className="space-y-4">
+          {/* Section 0: Local Storage Search History (Last 5 Queries) */}
+          {recentSearches.length > 0 && (
+            <div className="bg-white dark:bg-neutral-900 rounded-2xl p-3.5 border border-neutral-200 dark:border-neutral-800 shadow-xs space-y-2.5 animate-in fade-in duration-150">
+              <div className="flex items-center justify-between pb-2 border-b border-neutral-100 dark:border-neutral-800">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 rounded-xl bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400">
+                    <History size={15} />
+                  </div>
+                  <div>
+                    <h3 className="text-xs sm:text-sm font-bold text-neutral-900 dark:text-white flex items-center gap-1.5">
+                      <span>Recent Searches</span>
+                      <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-md bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 font-bold">
+                        {recentSearches.length}/5
+                      </span>
+                    </h3>
+                    <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                      Tap any previous query to jump back into search
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={clearAllSearchHistory}
+                  className="px-2 py-1 rounded-lg text-[11px] font-semibold text-neutral-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors flex items-center gap-1 cursor-pointer"
+                  title="Clear all recent search history"
+                >
+                  <Trash2 size={12} />
+                  <span>Clear All</span>
+                </button>
+              </div>
+
+              {/* 5 Recent queries chips */}
+              <div className="flex flex-wrap gap-1.5 pt-0.5">
+                {recentSearches.map(query => (
+                  <div
+                    key={query}
+                    onClick={() => handleSelectHistoryQuery(query)}
+                    className="group flex items-center gap-1.5 pl-3 pr-1.5 py-1.5 bg-neutral-100/90 hover:bg-purple-50 dark:bg-neutral-800 dark:hover:bg-neutral-750 border border-neutral-200/80 hover:border-purple-300 dark:border-neutral-700 dark:hover:border-purple-700/60 rounded-xl text-xs font-semibold text-neutral-800 dark:text-neutral-200 hover:text-purple-700 dark:hover:text-purple-300 cursor-pointer transition-all active:scale-95 shadow-2xs"
+                  >
+                    <Clock size={12} className="text-neutral-400 group-hover:text-purple-600 dark:group-hover:text-purple-400 flex-shrink-0" />
+                    <span className="max-w-[160px] truncate">{query}</span>
+                    <button
+                      type="button"
+                      onClick={e => removeQueryFromHistory(query, e)}
+                      className="p-1 rounded-lg text-neutral-400 hover:text-rose-600 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors ml-0.5 cursor-pointer"
+                      title={`Remove "${query}" from search history`}
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           {/* Quick Discover Filter Tabs */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
             <button
@@ -522,7 +667,7 @@ export const SearchView: React.FC = () => {
               {recentSuggestedPosts.length > 0 ? (
                 <div className="space-y-3">
                   {recentSuggestedPosts.map(p => (
-                    <PostCard key={p.id} post={p} onTagClick={t => setSearchTerm(t)} />
+                    <PostCard key={p.id} post={p} onTagClick={t => handleSelectHistoryQuery(t)} />
                   ))}
                 </div>
               ) : (
@@ -601,8 +746,8 @@ export const SearchView: React.FC = () => {
                     {results.tags.map((t, idx) => (
                       <button
                         key={idx}
-                        onClick={() => setSearchTerm(t)}
-                        className="px-2.5 py-1 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 font-medium text-xs hover:bg-neutral-200"
+                        onClick={() => handleSelectHistoryQuery(t)}
+                        className="px-2.5 py-1 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 font-medium text-xs hover:bg-neutral-200 cursor-pointer transition-colors"
                       >
                         #{t}
                       </button>
@@ -619,7 +764,7 @@ export const SearchView: React.FC = () => {
                       Posts ({results.posts.length})
                     </h4>
                     {results.posts.map(p => (
-                      <PostCard key={p.id} post={p} onTagClick={t => setSearchTerm(t)} />
+                      <PostCard key={p.id} post={p} onTagClick={t => handleSelectHistoryQuery(t)} />
                     ))}
                   </div>
                 )}

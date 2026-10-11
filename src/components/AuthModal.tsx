@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   X,
   User,
@@ -14,6 +14,11 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { TermsModal } from './TermsModal';
+import {
+  validateBangladeshiPhone,
+  validateRealEmail,
+  cleanBangladeshiPhoneDigits,
+} from '../utils/validators';
 
 export const AuthModal: React.FC = () => {
   const {
@@ -45,6 +50,18 @@ export const AuthModal: React.FC = () => {
   // Validation feedback
   const [usernameStatus, setUsernameStatus] = useState<'idle' | 'valid' | 'invalid'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
+
+  // Real email validation result
+  const emailResult = useMemo(() => {
+    if (!regEmail.trim()) return null;
+    return validateRealEmail(regEmail);
+  }, [regEmail]);
+
+  // Bangladeshi phone validation result
+  const phoneResult = useMemo(() => {
+    if (!regPhone) return null;
+    return validateBangladeshiPhone(regPhone);
+  }, [regPhone]);
 
   useEffect(() => {
     setErrorMessage('');
@@ -98,16 +115,36 @@ export const AuthModal: React.FC = () => {
       setErrorMessage('Please enter a unique Username.');
       return;
     }
+    if (regUsername.trim().length < 3) {
+      setErrorMessage('Username must be at least 3 characters.');
+      return;
+    }
     if (usernameStatus !== 'valid') {
-      setErrorMessage('This username is already taken or invalid. Please pick another.');
+      setErrorMessage('This username is already in use. Please pick another.');
       return;
     }
     if (!regEmail.trim()) {
-      setErrorMessage('Please enter your Email.');
+      setErrorMessage('Please enter your Email address.');
+      return;
+    }
+    const emailValidation = validateRealEmail(regEmail);
+    if (!emailValidation.isValid) {
+      setErrorMessage(
+        emailValidation.error ||
+          'Please enter a real email address (e.g. something@gmail.com, yahoo.com, outlook.com).'
+      );
       return;
     }
     if (!regPhone.trim()) {
-      setErrorMessage('Please enter your Phone number.');
+      setErrorMessage('Please enter your Bangladeshi phone number [(+88)01XXXXXXXXX].');
+      return;
+    }
+    const phoneValidation = validateBangladeshiPhone(regPhone);
+    if (!phoneValidation.isValid) {
+      setErrorMessage(
+        phoneValidation.error ||
+          'Please enter an 11-digit Bangladeshi phone number starting with "01" [(+88)01XXXXXXXXX].'
+      );
       return;
     }
     if (regPassword.length < 6) {
@@ -127,7 +164,7 @@ export const AuthModal: React.FC = () => {
       name: regName,
       username: regUsername,
       email: regEmail,
-      phone: regPhone,
+      phone: phoneValidation.formatted,
       password: regPassword,
     });
 
@@ -306,19 +343,19 @@ export const AuthModal: React.FC = () => {
                     </label>
                     {regUsername && (
                       <span
-                        className={`text-[10px] font-medium flex items-center gap-0.5 ${
+                        className={`text-[10px] font-semibold flex items-center gap-1 ${
                           usernameStatus === 'valid'
-                            ? 'text-emerald-600'
-                            : 'text-red-500'
+                            ? 'text-green-600 dark:text-green-400'
+                            : 'text-red-600 dark:text-red-400'
                         }`}
                       >
                         {usernameStatus === 'valid' ? (
                           <>
-                            <Check size={11} /> Available
+                            <Check size={12} className="stroke-[2.5]" /> Available
                           </>
                         ) : (
                           <>
-                            <AlertCircle size={11} /> Taken
+                            <X size={12} className="stroke-[2.5]" /> In Use
                           </>
                         )}
                       </span>
@@ -333,7 +370,7 @@ export const AuthModal: React.FC = () => {
                       onChange={e => setRegUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
                       className={`w-full pl-8 pr-3 py-2 bg-neutral-50 dark:bg-neutral-800 border rounded-lg text-xs text-neutral-900 dark:text-white focus:outline-none focus:ring-1 ${
                         usernameStatus === 'valid'
-                          ? 'border-emerald-500 focus:ring-emerald-500'
+                          ? 'border-green-500 focus:ring-green-500'
                           : usernameStatus === 'invalid'
                           ? 'border-red-500 focus:ring-red-500'
                           : 'border-neutral-200 dark:border-neutral-700 focus:ring-purple-600'
@@ -342,38 +379,135 @@ export const AuthModal: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Email */}
+                {/* Email Address */}
                 <div>
-                  <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
-                    Email Address <span className="text-red-500">*</span>
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300">
+                      Email Address <span className="text-red-500">*</span>
+                    </label>
+                    {regEmail && emailResult && (
+                      <span
+                        className={`text-[10px] font-semibold flex items-center gap-1 ${
+                          emailResult.isValid
+                            ? 'text-green-600 dark:text-green-400'
+                            : 'text-red-600 dark:text-red-400'
+                        }`}
+                      >
+                        {emailResult.isValid ? (
+                          <>
+                            <Check size={12} className="stroke-[2.5]" /> Valid Email
+                          </>
+                        ) : (
+                          <>
+                            <X size={12} className="stroke-[2.5]" /> Invalid Email
+                          </>
+                        )}
+                      </span>
+                    )}
+                  </div>
                   <div className="relative">
                     <Mail size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
                     <input
                       type="email"
-                      placeholder="user@example.com"
+                      placeholder="user@gmail.com, yahoo.com, outlook.com"
                       value={regEmail}
                       onChange={e => setRegEmail(e.target.value)}
-                      className="w-full pl-8 pr-3 py-2 bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg text-xs text-neutral-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-purple-600"
+                      className={`w-full pl-8 pr-3 py-2 bg-neutral-50 dark:bg-neutral-800 border rounded-lg text-xs text-neutral-900 dark:text-white focus:outline-none focus:ring-1 ${
+                        regEmail && emailResult
+                          ? emailResult.isValid
+                            ? 'border-green-500 focus:ring-green-500'
+                            : 'border-red-500 focus:ring-red-500'
+                          : 'border-neutral-200 dark:border-neutral-700 focus:ring-purple-600'
+                      }`}
                     />
                   </div>
+                  {regEmail && emailResult && !emailResult.isValid ? (
+                    <p className="text-[10px] text-red-500 dark:text-red-400 mt-1 flex items-center gap-1">
+                      <AlertCircle size={10} className="flex-shrink-0" />
+                      <span>{emailResult.error}</span>
+                    </p>
+                  ) : (
+                    <div className="flex items-center gap-1.5 mt-1 text-[10px] text-neutral-400">
+                      <span>Quick domain:</span>
+                      {['gmail.com', 'yahoo.com', 'outlook.com'].map(dom => (
+                        <button
+                          key={dom}
+                          type="button"
+                          onClick={() => {
+                            const prefix = regEmail.includes('@') ? regEmail.split('@')[0] : regEmail.trim();
+                            setRegEmail(prefix ? `${prefix}@${dom}` : `@${dom}`);
+                          }}
+                          className="px-1.5 py-0.5 rounded bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-neutral-600 dark:text-neutral-300 font-mono transition-colors cursor-pointer"
+                        >
+                          @{dom}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
-                {/* Phone */}
+                {/* Bangladeshi Phone Number */}
                 <div>
-                  <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
-                    Phone Number <span className="text-red-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300">
+                      Phone Number [(+88)01XXXXXXXXX] <span className="text-red-500">*</span>
+                    </label>
+                    {regPhone && phoneResult && (
+                      <span
+                        className={`text-[10px] font-semibold flex items-center gap-1 ${
+                          phoneResult.isValid
+                            ? 'text-green-600 dark:text-green-400'
+                            : 'text-red-600 dark:text-red-400'
+                        }`}
+                      >
+                        {phoneResult.isValid ? (
+                          <>
+                            <Check size={12} className="stroke-[2.5]" /> Valid BD Number
+                          </>
+                        ) : (
+                          <>
+                            <X size={12} className="stroke-[2.5]" /> {phoneResult.digitsCount}/11 digits
+                          </>
+                        )}
+                      </span>
+                    )}
+                  </div>
+                  <div
+                    className={`flex rounded-lg overflow-hidden border bg-neutral-50 dark:bg-neutral-800 transition-colors ${
+                      regPhone && phoneResult
+                        ? phoneResult.isValid
+                          ? 'border-green-500 ring-1 ring-green-500/20'
+                          : 'border-red-500 ring-1 ring-red-500/20'
+                        : 'border-neutral-200 dark:border-neutral-700 focus-within:ring-1 focus-within:ring-purple-600 focus-within:border-purple-600'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5 px-3 py-2 bg-neutral-200/70 dark:bg-neutral-900 border-r border-neutral-300 dark:border-neutral-700 text-neutral-800 dark:text-white font-bold font-mono text-xs select-none">
+                      <span className="text-sm">🇧🇩</span>
+                      <span className="text-neutral-900 dark:text-white font-extrabold tracking-tight">(+88)</span>
+                    </div>
                     <input
                       type="tel"
-                      placeholder="+1 (555) 000-0000"
+                      inputMode="numeric"
+                      maxLength={11}
+                      placeholder="01XXXXXXXXX (11 digits)"
                       value={regPhone}
-                      onChange={e => setRegPhone(e.target.value)}
-                      className="w-full pl-8 pr-3 py-2 bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg text-xs text-neutral-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-purple-600"
+                      onChange={e => {
+                        const digits = cleanBangladeshiPhoneDigits(e.target.value);
+                        setRegPhone(digits);
+                      }}
+                      className="w-full px-3 py-2 bg-transparent text-xs text-neutral-900 dark:text-white font-mono placeholder:text-neutral-400 focus:outline-none"
                     />
                   </div>
+                  {regPhone && phoneResult && !phoneResult.isValid ? (
+                    <p className="text-[10px] text-red-500 dark:text-red-400 mt-1 flex items-center gap-1">
+                      <AlertCircle size={10} className="flex-shrink-0" />
+                      <span>{phoneResult.error}</span>
+                    </p>
+                  ) : (
+                    <p className="text-[10px] text-neutral-500 dark:text-neutral-400 mt-1">
+                      Must be 11 digits starting with "01" and followed by 9 numbers (e.g. 017XXXXXXXX).
+                    </p>
+                  )}
                 </div>
 
                 {/* Password & Confirm */}
