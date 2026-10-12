@@ -1,36 +1,29 @@
 /**
- * Validation utilities for Bangladeshi phone numbers and real email addresses
+ * Validation utilities for phone numbers and real email addresses
  */
 
 export interface PhoneValidationResult {
   isValid: boolean;
-  normalized: string; // 11-digit clean format e.g. "01712345678"
-  formatted: string;  // Formatted string e.g. "(+88)01712345678"
+  normalized: string; // clean digits
+  formatted: string;  // Formatted string e.g. "+880 1712345678"
   digitsCount: number;
   error?: string;
 }
 
 /**
- * Extracts and cleans the Bangladeshi phone digits.
- * Strips non-digits, strips leading +88 or 88 if present, and clamps to 11 digits.
+ * Extracts and cleans digits from phone number input.
  */
-export function cleanBangladeshiPhoneDigits(input: string): string {
+export function cleanPhoneDigits(input: string): string {
   if (!input) return '';
-  // Remove non-digit characters
-  let digits = input.replace(/\D/g, '');
-  // If user pasted or typed 8801..., strip the leading country code 88
-  if (digits.startsWith('8801') && digits.length >= 13) {
-    digits = digits.slice(2);
-  }
-  return digits.slice(0, 11);
+  return input.replace(/\D/g, '');
 }
 
 /**
- * Validates that a phone number is an 11-digit Bangladeshi mobile number starting with "01"
- * Examples: 017XXXXXXXX, 018XXXXXXXX, 019XXXXXXXX, 013XXXXXXXX, etc.
+ * Validates a phone number.
+ * Users can provide numbers consisting of any number of digits.
  */
-export function validateBangladeshiPhone(input: string): PhoneValidationResult {
-  const digits = cleanBangladeshiPhoneDigits(input);
+export function validatePhoneNumber(input: string, countryCode: string = '+880'): PhoneValidationResult {
+  const digits = cleanPhoneDigits(input);
 
   if (!digits) {
     return {
@@ -38,37 +31,28 @@ export function validateBangladeshiPhone(input: string): PhoneValidationResult {
       normalized: '',
       formatted: '',
       digitsCount: 0,
-      error: 'Phone number is required. Please enter an 11-digit Bangladeshi number starting with "01".',
+      error: 'Phone number is required.',
     };
   }
 
-  if (!digits.startsWith('01')) {
-    return {
-      isValid: false,
-      normalized: digits,
-      formatted: `(+88)${digits}`,
-      digitsCount: digits.length,
-      error: 'Bangladeshi phone numbers must start with "01" [(+88)01XXXXXXXXX].',
-    };
-  }
+  // Any number of digits is valid as requested
+  const formatted = countryCode ? `${countryCode} ${digits}` : digits;
 
-  if (digits.length < 11) {
-    return {
-      isValid: false,
-      normalized: digits,
-      formatted: `(+88)${digits}`,
-      digitsCount: digits.length,
-      error: `Must be exactly 11 digits (${digits.length}/11 entered, ${11 - digits.length} more numbers needed).`,
-    };
-  }
-
-  // Exact 11 digits starting with 01
   return {
     isValid: true,
     normalized: digits,
-    formatted: `(+88)${digits}`,
-    digitsCount: 11,
+    formatted,
+    digitsCount: digits.length,
   };
+}
+
+// Aliases for backward compatibility
+export function cleanBangladeshiPhoneDigits(input: string): string {
+  return cleanPhoneDigits(input);
+}
+
+export function validateBangladeshiPhone(input: string): PhoneValidationResult {
+  return validatePhoneNumber(input, '+880');
 }
 
 export interface EmailValidationResult {

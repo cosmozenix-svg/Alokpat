@@ -4,7 +4,6 @@ import {
   User,
   AtSign,
   Mail,
-  Phone,
   Lock,
   Eye,
   EyeOff,
@@ -14,10 +13,11 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { TermsModal } from './TermsModal';
+import { PhoneInput } from './PhoneInput';
+import { Country, DEFAULT_COUNTRY } from '../data/countries';
 import {
-  validateBangladeshiPhone,
+  validatePhoneNumber,
   validateRealEmail,
-  cleanBangladeshiPhoneDigits,
 } from '../utils/validators';
 
 export const AuthModal: React.FC = () => {
@@ -40,6 +40,7 @@ export const AuthModal: React.FC = () => {
   const [regName, setRegName] = useState('');
   const [regUsername, setRegUsername] = useState('');
   const [regEmail, setRegEmail] = useState('');
+  const [regCountry, setRegCountry] = useState<Country>(DEFAULT_COUNTRY);
   const [regPhone, setRegPhone] = useState('');
   const [regPassword, setRegPassword] = useState('');
   const [regConfirmPassword, setRegConfirmPassword] = useState('');
@@ -56,12 +57,6 @@ export const AuthModal: React.FC = () => {
     if (!regEmail.trim()) return null;
     return validateRealEmail(regEmail);
   }, [regEmail]);
-
-  // Bangladeshi phone validation result
-  const phoneResult = useMemo(() => {
-    if (!regPhone) return null;
-    return validateBangladeshiPhone(regPhone);
-  }, [regPhone]);
 
   useEffect(() => {
     setErrorMessage('');
@@ -136,15 +131,12 @@ export const AuthModal: React.FC = () => {
       return;
     }
     if (!regPhone.trim()) {
-      setErrorMessage('Please enter your Bangladeshi phone number [(+88)01XXXXXXXXX].');
+      setErrorMessage('Please enter your phone number.');
       return;
     }
-    const phoneValidation = validateBangladeshiPhone(regPhone);
+    const phoneValidation = validatePhoneNumber(regPhone, regCountry.code);
     if (!phoneValidation.isValid) {
-      setErrorMessage(
-        phoneValidation.error ||
-          'Please enter an 11-digit Bangladeshi phone number starting with "01" [(+88)01XXXXXXXXX].'
-      );
+      setErrorMessage(phoneValidation.error || 'Please enter a valid phone number.');
       return;
     }
     if (regPassword.length < 6) {
@@ -160,11 +152,12 @@ export const AuthModal: React.FC = () => {
       return;
     }
 
+    const fullPhoneNumber = `${regCountry.code} ${regPhone.trim()}`;
     const res = register({
       name: regName,
       username: regUsername,
       email: regEmail,
-      phone: phoneValidation.formatted,
+      phone: fullPhoneNumber,
       password: regPassword,
     });
 
@@ -284,37 +277,6 @@ export const AuthModal: React.FC = () => {
                   <span>Log In</span>
                   <ArrowRight size={14} />
                 </button>
-
-                {/* Quick Demo Accounts */}
-                <div className="pt-2 border-t border-neutral-100 dark:border-neutral-800">
-                  <p className="text-[11px] text-neutral-400 text-center mb-2">Quick Demo Accounts (1-Tap):</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setLoginIdentifier('sarah@design.io');
-                        setLoginPassword('password123');
-                        login('sarah@design.io', 'password123');
-                      }}
-                      className="p-2 rounded-xl bg-neutral-50 dark:bg-neutral-800/80 hover:bg-neutral-100 dark:hover:bg-neutral-750 border border-neutral-200/70 dark:border-neutral-700 text-left active:scale-95 transition-all cursor-pointer"
-                    >
-                      <div className="font-semibold text-neutral-800 dark:text-neutral-200 truncate">Sarah Jenkins</div>
-                      <div className="text-[10px] text-neutral-400">@sarah_design</div>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setLoginIdentifier('alex@techcorp.dev');
-                        setLoginPassword('password123');
-                        login('alex@techcorp.dev', 'password123');
-                      }}
-                      className="p-2 rounded-xl bg-neutral-50 dark:bg-neutral-800/80 hover:bg-neutral-100 dark:hover:bg-neutral-750 border border-neutral-200/70 dark:border-neutral-700 text-left active:scale-95 transition-all cursor-pointer"
-                    >
-                      <div className="font-semibold text-neutral-800 dark:text-neutral-200 truncate">Alex Rivera</div>
-                      <div className="text-[10px] text-neutral-400">@alex_tech</div>
-                    </button>
-                  </div>
-                </div>
               </form>
             ) : (
               <form onSubmit={handleRegisterSubmit} className="space-y-3">
@@ -446,69 +408,20 @@ export const AuthModal: React.FC = () => {
                   )}
                 </div>
 
-                {/* Bangladeshi Phone Number */}
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300">
-                      Phone Number [(+88)01XXXXXXXXX] <span className="text-red-500">*</span>
-                    </label>
-                    {regPhone && phoneResult && (
-                      <span
-                        className={`text-[10px] font-semibold flex items-center gap-1 ${
-                          phoneResult.isValid
-                            ? 'text-green-600 dark:text-green-400'
-                            : 'text-red-600 dark:text-red-400'
-                        }`}
-                      >
-                        {phoneResult.isValid ? (
-                          <>
-                            <Check size={12} className="stroke-[2.5]" /> Valid BD Number
-                          </>
-                        ) : (
-                          <>
-                            <X size={12} className="stroke-[2.5]" /> {phoneResult.digitsCount}/11 digits
-                          </>
-                        )}
-                      </span>
-                    )}
-                  </div>
-                  <div
-                    className={`flex rounded-lg overflow-hidden border bg-neutral-50 dark:bg-neutral-800 transition-colors ${
-                      regPhone && phoneResult
-                        ? phoneResult.isValid
-                          ? 'border-green-500 ring-1 ring-green-500/20'
-                          : 'border-red-500 ring-1 ring-red-500/20'
-                        : 'border-neutral-200 dark:border-neutral-700 focus-within:ring-1 focus-within:ring-purple-600 focus-within:border-purple-600'
-                    }`}
-                  >
-                    <div className="flex items-center gap-1.5 px-3 py-2 bg-neutral-200/70 dark:bg-neutral-900 border-r border-neutral-300 dark:border-neutral-700 text-neutral-800 dark:text-white font-bold font-mono text-xs select-none">
-                      <span className="text-sm">🇧🇩</span>
-                      <span className="text-neutral-900 dark:text-white font-extrabold tracking-tight">(+88)</span>
-                    </div>
-                    <input
-                      type="tel"
-                      inputMode="numeric"
-                      maxLength={11}
-                      placeholder="01XXXXXXXXX (11 digits)"
-                      value={regPhone}
-                      onChange={e => {
-                        const digits = cleanBangladeshiPhoneDigits(e.target.value);
-                        setRegPhone(digits);
-                      }}
-                      className="w-full px-3 py-2 bg-transparent text-xs text-neutral-900 dark:text-white font-mono placeholder:text-neutral-400 focus:outline-none"
-                    />
-                  </div>
-                  {regPhone && phoneResult && !phoneResult.isValid ? (
-                    <p className="text-[10px] text-red-500 dark:text-red-400 mt-1 flex items-center gap-1">
-                      <AlertCircle size={10} className="flex-shrink-0" />
-                      <span>{phoneResult.error}</span>
-                    </p>
-                  ) : (
-                    <p className="text-[10px] text-neutral-500 dark:text-neutral-400 mt-1">
-                      Must be 11 digits starting with "01" and followed by 9 numbers (e.g. 017XXXXXXXX).
-                    </p>
-                  )}
-                </div>
+                {/* Phone Number Input with Custom Country Code Dropdown */}
+                <PhoneInput
+                  label="Phone Number"
+                  required
+                  value={regPhone}
+                  selectedCountry={regCountry}
+                  onCountryChange={setRegCountry}
+                  onChange={(val, _full, c) => {
+                    setRegPhone(val);
+                    setRegCountry(c);
+                  }}
+                  placeholder="Enter phone number"
+                  helperText="Select country code and enter your phone number (any number of digits)"
+                />
 
                 {/* Password & Confirm */}
                 <div className="grid grid-cols-2 gap-2">

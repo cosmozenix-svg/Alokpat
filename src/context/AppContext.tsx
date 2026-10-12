@@ -16,9 +16,9 @@ import {
   syncReportToDb,
 } from '../lib/firestoreSync';
 import {
-  validateBangladeshiPhone,
+  validatePhoneNumber,
   validateRealEmail,
-  cleanBangladeshiPhoneDigits,
+  cleanPhoneDigits,
 } from '../utils/validators';
 
 interface AppContextType {
@@ -428,19 +428,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, error: 'An account with this email address already exists.' };
     }
 
-    // Bangladeshi Phone Number Validation: [(+88)01XXXXXXXXX] - 11 digits starting with "01"
-    const phoneValidation = validateBangladeshiPhone(cleanPhone);
+    // Phone Number Validation: Users can provide numbers consisting of any number of digits
+    const phoneValidation = validatePhoneNumber(cleanPhone);
     if (!phoneValidation.isValid) {
       return {
         success: false,
-        error: phoneValidation.error || 'Please enter an 11-digit Bangladeshi phone number starting with "01" [(+88)01XXXXXXXXX].',
+        error: phoneValidation.error || 'Please enter a valid phone number.',
       };
     }
 
     // Ensure phone number uniqueness
     const phoneDigits = phoneValidation.normalized;
-    if (users.some(u => cleanBangladeshiPhoneDigits(u.phone) === phoneDigits)) {
-      return { success: false, error: 'An account with this Bangladeshi phone number already exists.' };
+    if (phoneDigits && users.some(u => cleanPhoneDigits(u.phone) === phoneDigits)) {
+      return { success: false, error: 'An account with this phone number already exists.' };
     }
 
     // Determine sequential next ID: e.g. max ID + 1, starting at 10001
@@ -452,7 +452,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       name: data.name.trim(),
       username: cleanUsername,
       email: cleanEmail,
-      phone: phoneValidation.formatted,
+      phone: data.phone.trim() || phoneValidation.formatted,
       password: data.password,
       avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(data.name.trim())}&backgroundColor=7c3aed`,
       cover: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200&auto=format&fit=crop&q=80',
@@ -496,13 +496,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const login = (identifier: string, password: string) => {
     const clean = identifier.trim().toLowerCase();
-    const inputPhoneDigits = cleanBangladeshiPhoneDigits(identifier);
+    const inputPhoneDigits = cleanPhoneDigits(identifier);
     const user = users.find(
       u =>
         u.email.toLowerCase() === clean ||
         u.username.toLowerCase() === clean ||
-        u.phone.trim() === identifier.trim() ||
-        (inputPhoneDigits.length === 11 && cleanBangladeshiPhoneDigits(u.phone) === inputPhoneDigits)
+        u.phone.trim().toLowerCase() === identifier.trim().toLowerCase() ||
+        (inputPhoneDigits.length >= 3 && cleanPhoneDigits(u.phone) === inputPhoneDigits)
     );
 
     if (!user) {
