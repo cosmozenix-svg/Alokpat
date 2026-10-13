@@ -76,9 +76,9 @@ const MainLayout: React.FC = () => {
     }
 
     if (unreadNotificationCount > prevUnreadCountRef.current && currentUser) {
-      const userNotifs = notifications.filter(
-        n => n.userId === currentUser.id || n.userId === 'all'
-      );
+      const userNotifs = notifications
+        .filter(n => Number(n.userId) === Number(currentUser.id) || n.userId === 'all')
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       const latest = userNotifs[0];
       if (latest && !latest.isRead && activeTab !== 'notifications') {
         setLiveToast(latest);

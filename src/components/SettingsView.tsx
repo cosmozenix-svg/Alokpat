@@ -40,7 +40,6 @@ export const SettingsView: React.FC = () => {
     setAuthMode,
     changePassword,
     requestVerification,
-    simulateFollowers,
   } = useApp();
 
   const [isTermsOpen, setIsTermsOpen] = useState(false);
@@ -481,10 +480,10 @@ export const SettingsView: React.FC = () => {
                 <div className="flex items-center justify-between text-xs">
                   <span className="font-semibold text-neutral-800 dark:text-white flex items-center gap-1.5">
                     <Users size={13} className="text-purple-600 dark:text-purple-400" />
-                    <span>Eligibility: 100 Followers Required</span>
+                    <span>Eligibility: 100 Organic Followers Required</span>
                   </span>
                   <span className={`font-bold font-mono text-[11px] ${isEligibleForVerification ? 'text-emerald-600 dark:text-emerald-400' : 'text-neutral-500 dark:text-neutral-400'}`}>
-                    {followerCount} / 100
+                    {followerCount} / 100 Real Followers
                   </span>
                 </div>
 
@@ -498,12 +497,12 @@ export const SettingsView: React.FC = () => {
 
                 {!isEligibleForVerification ? (
                   <p className="text-[11px] text-neutral-500 dark:text-neutral-400 leading-relaxed pt-0.5">
-                    You need <strong className="text-purple-600 dark:text-purple-400">{100 - followerCount} more followers</strong> to unlock verification applications. Once you reach 100 followers, you can submit your purpose, category, and identity details.
+                    You need <strong className="text-purple-600 dark:text-purple-400">{100 - followerCount} more real followers</strong> to unlock verification. Users can only apply for verification when they have at least 100 organic followers.
                   </p>
                 ) : (
                   <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1 pt-0.5">
                     <CheckCircle2 size={12} />
-                    <span>Requirement Met! You have {followerCount} followers and qualify to apply.</span>
+                    <span>Requirement Met! You have {followerCount} real followers and qualify to apply.</span>
                   </p>
                 )}
               </div>
@@ -524,37 +523,20 @@ export const SettingsView: React.FC = () => {
                     type="button"
                     onClick={() => {
                       setEligibilityNotice(
-                        `Verification Requirement: You need at least 100 followers to apply. You currently have ${followerCount} follower${followerCount === 1 ? '' : 's'} (${100 - followerCount} more needed).`
+                        `Verification Requirement: You need at least 100 real organic followers to apply. You currently have ${followerCount} follower${followerCount === 1 ? '' : 's'} (${100 - followerCount} more needed).`
                       );
                       setTimeout(() => setEligibilityNotice(null), 5000);
                     }}
                     className="w-full py-2.5 px-4 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-400 dark:text-neutral-500 font-semibold text-xs flex items-center justify-center gap-2 cursor-pointer border border-neutral-200 dark:border-neutral-750 opacity-80"
                   >
                     <Lock size={14} />
-                    <span>Apply for Verification (100 Followers Required)</span>
+                    <span>Apply for Verification (100 Real Followers Required)</span>
                   </button>
 
                   {eligibilityNotice && (
                     <div className="p-2.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 rounded-xl text-[11px] text-amber-800 dark:text-amber-300 flex items-start gap-2 animate-in fade-in">
                       <AlertCircle size={14} className="flex-shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
                       <span>{eligibilityNotice}</span>
-                    </div>
-                  )}
-
-                  {simulateFollowers && (
-                    <div className="text-center pt-1">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          simulateFollowers(100);
-                          setEligibilityNotice('Added test followers! You now meet the 100 followers requirement.');
-                          setTimeout(() => setEligibilityNotice(null), 3000);
-                        }}
-                        className="text-[11px] text-purple-600 dark:text-purple-400 hover:underline inline-flex items-center gap-1 bg-transparent border-none cursor-pointer font-medium"
-                      >
-                        <Sparkles size={12} />
-                        <span>Simulate 100 Followers (Dev Testing)</span>
-                      </button>
                     </div>
                   )}
                 </div>

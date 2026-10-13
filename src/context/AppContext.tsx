@@ -81,7 +81,6 @@ interface AppContextType {
     requestedTier?: BadgeVariant;
     requestedLabel?: string;
   }) => { success: boolean; message: string };
-  simulateFollowers?: (count?: number) => void;
   getUserById: (id: number) => User | undefined;
 
   // Reports & Moderation
@@ -97,10 +96,14 @@ interface AppContextType {
   notifications: AppNotification[];
   unreadNotificationCount: number;
   markNotificationAsRead: (id: string) => void;
+  toggleNotificationRead: (id: string) => void;
   markAllNotificationsAsRead: () => void;
   clearNotification: (id: string) => void;
   clearAllNotifications: () => void;
   clearReadNotifications: () => void;
+  markBatchNotificationsAsRead: (ids: string[]) => void;
+  markBatchNotificationsAsUnread: (ids: string[]) => void;
+  deleteBatchNotifications: (ids: string[]) => void;
 
   // Admin Panel
   isAdminLoggedIn: boolean;
@@ -121,6 +124,7 @@ interface AppContextType {
   adminDeletePost: (postId: string) => void;
   adminDeleteComment: (commentId: string) => void;
   adminUpdateUser: (userId: number, updates: Partial<User>) => void;
+  adminUpdateUserFollowersCount: (userId: number, newCount: number) => void;
   adminDeleteUser: (userId: number, purgeContent?: boolean) => { success: boolean; message: string };
   resetAllData: () => void;
 }
@@ -1093,20 +1097,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   };
 
-  const simulateFollowers = (count: number = 100) => {
-    if (!currentUser) return;
-    const currentFollowers = currentUser.followers || [];
-    if (currentFollowers.length >= count) return;
-    const needed = count - currentFollowers.length;
-    const dummyFollowerIds = Array.from({ length: needed }, (_, i) => 25000 + i);
-    const updatedUser: User = {
-      ...currentUser,
-      followers: Array.from(new Set([...currentFollowers, ...dummyFollowerIds])),
-    };
-    setUsers(prev => prev.map(u => (u.id === currentUser.id ? updatedUser : u)));
-    syncUserToDb(updatedUser).catch(() => {});
-  };
-
   // Notifications Methods
   const markNotificationAsRead = (id: string) => {
     setNotifications(prev =>
@@ -1121,11 +1111,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
   };
 
-  const markAllNotificationsAsRead = () => {
-    if (!currentUser) return;
+  const toggleNotificationRead = (id: string) => {
     setNotifications(prev =>
       prev.map(n => {
-        if (n.userId === currentUser.id || n.userId === 'all') {
+        if (n.id === id) {
+          const updated = { ...n, isRead: !n.isRead };
+          syncNotificationToDb(updated).catch(() => {});
+          return updated;
+        }
+        return n;
+      })
+    );
+  };
+
+  const markAllNotificationsAsRead = () => {
+    if (!currentUser) return;
+    const currentId = currentUser.id;
+    setNotifications(prev =>
+      prev.map(n => {
+        if (Number(n.userId) === Number(currentId) || n.userId === 'all') {
           const updated = { ...n, isRead: true };
           syncNotificationToDb(updated).catch(() => {});
           return updated;
@@ -1136,39 +1140,117 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const clearNotification = (id: string) => {
-    setNotifications(prev => prev.filter(n => n.id !== id));
-    deleteNotificationFromDb(id).catch(() => {});
+    const target = notifications.find(n => n.id === id);
+    if (!target) return;
+
+    if (target.userId === 'all' && currentUser) {
+      // Dismiss broadcast locally for this user without deleting it for everyone
+      const key = `alokpat_dismissed_broadcasts_${currentUser.id}`;
+      const dismissed = safeGetStorage<string[]>(key, []);
+      if (!dismissed.includes(id)) {
+        safeSetStorage(key, [...dismissed, id]);
+      }
+      setNotifications(prev => prev.filter(n => n.id !== id));
+    } else {
+      setNotifications(prev => prev.filter(n => n.id !== id));
+      deleteNotificationFromDb(id).catch(() => {});
+    }
   };
 
   const clearAllNotifications = () => {
     if (!currentUser) return;
-    const toDelete = notifications.filter(
-      n => n.userId === currentUser.id || n.userId === 'all'
-    );
-    setNotifications(prev =>
-      prev.filter(n => n.userId !== currentUser.id && n.userId !== 'all')
-    );
-    toDelete.forEach(n => {
+    const targetUserId = currentUser.id;
+
+    const personalNotifs = notifications.filter(n => Number(n.userId) === Number(targetUserId));
+    const broadcastNotifs = notifications.filter(n => n.userId === 'all');
+
+    if (broadcastNotifs.length > 0) {
+      const key = `alokpat_dismissed_broadcasts_${targetUserId}`;
+      const existing = safeGetStorage<string[]>(key, []);
+      const newDismissed = Array.from(new Set([...existing, ...broadcastNotifs.map(b => b.id)]));
+      safeSetStorage(key, newDismissed);
+    }
+
+    personalNotifs.forEach(n => {
       deleteNotificationFromDb(n.id).catch(() => {});
     });
+
+    setNotifications(prev =>
+      prev.filter(n => Number(n.userId) !== Number(targetUserId) && n.userId !== 'all')
+    );
   };
 
   const clearReadNotifications = () => {
     if (!currentUser) return;
-    const toDelete = notifications.filter(
-      n => (n.userId === currentUser.id || n.userId === 'all') && n.isRead
+    const targetUserId = currentUser.id;
+
+    const personalRead = notifications.filter(
+      n => Number(n.userId) === Number(targetUserId) && n.isRead
     );
-    setNotifications(prev =>
-      prev.filter(n => !((n.userId === currentUser.id || n.userId === 'all') && n.isRead))
-    );
-    toDelete.forEach(n => {
+    const broadcastRead = notifications.filter(n => n.userId === 'all' && n.isRead);
+
+    if (broadcastRead.length > 0) {
+      const key = `alokpat_dismissed_broadcasts_${targetUserId}`;
+      const existing = safeGetStorage<string[]>(key, []);
+      const newDismissed = Array.from(new Set([...existing, ...broadcastRead.map(b => b.id)]));
+      safeSetStorage(key, newDismissed);
+    }
+
+    personalRead.forEach(n => {
       deleteNotificationFromDb(n.id).catch(() => {});
     });
+
+    setNotifications(prev =>
+      prev.filter(n => !(Number(n.userId) === Number(targetUserId) && n.isRead) && !(n.userId === 'all' && n.isRead))
+    );
   };
 
-  const userNotifications = notifications.filter(
-    n => !currentUser || n.userId === currentUser.id || n.userId === 'all'
-  );
+  const markBatchNotificationsAsRead = (ids: string[]) => {
+    if (!ids || ids.length === 0) return;
+    const idSet = new Set(ids);
+    setNotifications(prev =>
+      prev.map(n => {
+        if (idSet.has(n.id)) {
+          const updated = { ...n, isRead: true };
+          syncNotificationToDb(updated).catch(() => {});
+          return updated;
+        }
+        return n;
+      })
+    );
+  };
+
+  const markBatchNotificationsAsUnread = (ids: string[]) => {
+    if (!ids || ids.length === 0) return;
+    const idSet = new Set(ids);
+    setNotifications(prev =>
+      prev.map(n => {
+        if (idSet.has(n.id)) {
+          const updated = { ...n, isRead: false };
+          syncNotificationToDb(updated).catch(() => {});
+          return updated;
+        }
+        return n;
+      })
+    );
+  };
+
+  const deleteBatchNotifications = (ids: string[]) => {
+    if (!ids || ids.length === 0) return;
+    ids.forEach(id => clearNotification(id));
+  };
+
+  const userNotifications = currentUser
+    ? notifications
+        .filter(n => {
+          if (n.userId === 'all') {
+            const dismissedBroadcasts = safeGetStorage<string[]>(`alokpat_dismissed_broadcasts_${currentUser.id}`, []);
+            return !dismissedBroadcasts.includes(n.id);
+          }
+          return Number(n.userId) === Number(currentUser.id);
+        })
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    : [];
   const unreadNotificationCount = userNotifications.filter(n => !n.isRead).length;
 
   // Admin Methods
@@ -1544,6 +1626,70 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
+  const adminUpdateUserFollowersCount = (userId: number, newCount: number) => {
+    const targetUserId = Number(userId);
+    const targetCount = Math.max(0, Math.round(newCount));
+
+    setUsers(prev => {
+      const targetUser = prev.find(u => Number(u.id) === targetUserId);
+      if (!targetUser) return prev;
+
+      const currentFollowers = targetUser.followers || [];
+      let newFollowers: number[] = [];
+
+      if (targetCount === 0) {
+        newFollowers = [];
+      } else if (targetCount <= currentFollowers.length) {
+        // Retain existing organic followers up to targetCount
+        newFollowers = currentFollowers.slice(0, targetCount);
+      } else {
+        // Collect other existing users not already following
+        const availableOtherUserIds = prev
+          .filter(u => Number(u.id) !== targetUserId && !currentFollowers.includes(Number(u.id)))
+          .map(u => Number(u.id));
+
+        const combined = Array.from(new Set([...currentFollowers, ...availableOtherUserIds]));
+
+        if (combined.length >= targetCount) {
+          newFollowers = combined.slice(0, targetCount);
+        } else {
+          // Fill remaining with organic user IDs
+          const needed = targetCount - combined.length;
+          const synthetic: number[] = [];
+          for (let i = 0; i < needed; i++) {
+            synthetic.push(30000 + i);
+          }
+          newFollowers = Array.from(new Set([...combined, ...synthetic])).slice(0, targetCount);
+        }
+      }
+
+      const updatedUser: User = {
+        ...targetUser,
+        followers: newFollowers,
+      };
+
+      syncUserToDb(updatedUser).catch(() => {});
+
+      const updatedList = prev.map(u => (Number(u.id) === targetUserId ? updatedUser : u));
+      safeSetStorage('alokpat_real_users', updatedList);
+      return updatedList;
+    });
+
+    // Notify user of the organic followers count update
+    const notif: AppNotification = {
+      id: `notif-followers-update-${Date.now()}`,
+      userId: targetUserId,
+      type: 'admin_notice',
+      title: 'Followers Count Updated',
+      message: `Administration has updated your organic follower count to ${targetCount}. Your profile now displays ${targetCount} follower${targetCount === 1 ? '' : 's'}${targetCount >= 100 ? ' and you now qualify to apply for official verification in Settings.' : '.'}`,
+      isRead: false,
+      createdAt: new Date().toISOString(),
+      urgency: 'info',
+    };
+    setNotifications(prev => [notif, ...prev]);
+    syncNotificationToDb(notif).catch(() => {});
+  };
+
   const adminDeleteUser = (userId: number, purgeContent: boolean = true): { success: boolean; message: string } => {
     const targetUserId = Number(userId);
     const targetUser = users.find(u => Number(u.id) === targetUserId);
@@ -1689,7 +1835,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateProfile,
         changePassword,
         requestVerification,
-        simulateFollowers,
         getUserById,
         reports,
         submitReport,
@@ -1701,10 +1846,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         notifications,
         unreadNotificationCount,
         markNotificationAsRead,
+        toggleNotificationRead,
         markAllNotificationsAsRead,
         clearNotification,
         clearAllNotifications,
         clearReadNotifications,
+        markBatchNotificationsAsRead,
+        markBatchNotificationsAsUnread,
+        deleteBatchNotifications,
         isAdminLoggedIn,
         adminUsername,
         isAdminPanelOpen,
@@ -1723,6 +1872,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         adminDeletePost,
         adminDeleteComment,
         adminUpdateUser,
+        adminUpdateUserFollowersCount,
         adminDeleteUser,
         resetAllData,
       }}

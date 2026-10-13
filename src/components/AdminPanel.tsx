@@ -88,6 +88,7 @@ export const AdminPanel: React.FC = () => {
     adminResolveReport,
     adminDismissReport,
     adminUpdateUser,
+    adminUpdateUserFollowersCount,
     adminDeleteUser,
     openUserProfile,
   } = useApp();
@@ -159,6 +160,12 @@ export const AdminPanel: React.FC = () => {
   const [resetPassUser, setResetPassUser] = useState<User | null>(null);
   const [newPasswordVal, setNewPasswordVal] = useState('');
   const [resetPassSuccess, setResetPassSuccess] = useState(false);
+
+  // MODIFY ORGANIC FOLLOWERS MODAL STATE
+  const [modifyingFollowersUser, setModifyingFollowersUser] = useState<User | null>(null);
+  const [newFollowersCountInput, setNewFollowersCountInput] = useState<number>(0);
+  const [followersSuccessToast, setFollowersSuccessToast] = useState<string | null>(null);
+  const [editFormFollowers, setEditFormFollowers] = useState<number>(0);
 
   // DELETE ACCOUNT MODAL STATE
   const [deletingUser, setDeletingUser] = useState<User | null>(null);
@@ -266,6 +273,7 @@ export const AdminPanel: React.FC = () => {
     );
     setEditFormBadgeShape(targetUser.badgeShape || 'starburst');
     setEditFormCustomLabel(targetUser.customBadgeLabel || '');
+    setEditFormFollowers((targetUser.followers || []).length);
   };
 
   const handleSaveEditUser = (e: React.FormEvent) => {
@@ -289,6 +297,13 @@ export const AdminPanel: React.FC = () => {
       badgeShape: editFormBadgeShape,
       customBadgeLabel: editFormCustomLabel.trim() || undefined,
     });
+
+    // Check if followers count was updated in edit form
+    const currentFollowersCount = (editingUser.followers || []).length;
+    const newCount = Math.max(0, Math.round(Number(editFormFollowers) || 0));
+    if (newCount !== currentFollowersCount) {
+      adminUpdateUserFollowersCount(editingUser.id, newCount);
+    }
 
     addAuditLog(
       'Updated User Profile',
@@ -323,6 +338,49 @@ export const AdminPanel: React.FC = () => {
     }
 
     setEditingUser(null);
+  };
+
+  // Modify Followers Count Modal Handlers
+  const openFollowersModal = (user: User) => {
+    setModifyingFollowersUser(user);
+    setNewFollowersCountInput((user.followers || []).length);
+  };
+
+  const handleSaveFollowersCount = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!modifyingFollowersUser) return;
+    const target = modifyingFollowersUser;
+    const count = Math.max(0, Math.round(Number(newFollowersCountInput) || 0));
+
+    adminUpdateUserFollowersCount(target.id, count);
+
+    addAuditLog(
+      'Modified Followers Count',
+      `Admin updated followers count for @${target.username} (#${target.id}) to ${count} organic followers`,
+      'edit',
+      `@${target.username}`
+    );
+
+    // If detailedUser is open, update its follower list state immediately
+    if (detailedUser && Number(detailedUser.id) === Number(target.id)) {
+      setDetailedUser(prev => {
+        if (!prev) return null;
+        const current = prev.followers || [];
+        let updated: number[] = [];
+        if (count <= current.length) {
+          updated = current.slice(0, count);
+        } else {
+          const needed = count - current.length;
+          const synthetic = Array.from({ length: needed }, (_, i) => 30000 + i);
+          updated = [...current, ...synthetic];
+        }
+        return { ...prev, followers: updated };
+      });
+    }
+
+    setFollowersSuccessToast(`Followers set to ${count} organic followers for @${target.username}`);
+    setTimeout(() => setFollowersSuccessToast(null), 3000);
+    setModifyingFollowersUser(null);
   };
 
   // Handle Reset Password Submit
@@ -752,6 +810,13 @@ export const AdminPanel: React.FC = () => {
 
   return (
     <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-150">
+      {/* Toast Feedback for Followers update */}
+      {followersSuccessToast && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-80 px-4 py-2 bg-neutral-900/95 dark:bg-white/95 text-white dark:text-neutral-900 rounded-full text-xs font-bold shadow-xl border border-neutral-700 dark:border-neutral-200 animate-in fade-in flex items-center gap-1.5">
+          <CheckCircle2 size={14} className="text-emerald-500" />
+          <span>{followersSuccessToast}</span>
+        </div>
+      )}
       <div className="relative w-full max-w-5xl bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl border border-neutral-200 dark:border-white/20 overflow-hidden flex flex-col max-h-[96vh]">
         {/* Admin Header */}
         <div className="px-5 py-3.5 bg-neutral-900 text-white flex items-center justify-between flex-shrink-0 border-b border-neutral-800">
@@ -1717,7 +1782,14 @@ export const AdminPanel: React.FC = () => {
                                   <span>•</span>
                                   <span>{userPostsCount} posts</span>
                                   <span>•</span>
-                                  <span>{(user.followers || []).length} followers</span>
+                                  <button
+                                    onClick={() => openFollowersModal(user)}
+                                    className="hover:text-purple-600 dark:hover:text-purple-400 font-semibold underline underline-offset-2 inline-flex items-center gap-1 cursor-pointer transition-colors"
+                                    title="Click to modify followers count"
+                                  >
+                                    <span>{(user.followers || []).length} followers</span>
+                                    <Edit size={10} />
+                                  </button>
                                 </div>
                               </div>
                             </div>
@@ -1742,6 +1814,16 @@ export const AdminPanel: React.FC = () => {
                               >
                                 <Edit size={12} />
                                 <span>Edit</span>
+                              </button>
+
+                              {/* Modify Followers Count Button */}
+                              <button
+                                onClick={() => openFollowersModal(user)}
+                                className="px-2.5 py-1.5 bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/60 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 font-semibold rounded-lg text-xs border border-purple-200 dark:border-purple-800 flex items-center gap-1 cursor-pointer transition-colors"
+                                title="Modify user's followers count"
+                              >
+                                <Users size={12} />
+                                <span>Followers ({(user.followers || []).length})</span>
                               </button>
 
                               {/* Verify Toggle */}
@@ -2532,9 +2614,18 @@ export const AdminPanel: React.FC = () => {
                       <p className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400">Total Posts</p>
                     </div>
 
-                    <div className="bg-neutral-50 dark:bg-neutral-800/70 p-3 rounded-2xl border border-neutral-200 dark:border-white/20 text-center">
-                      <p className="text-lg font-black text-neutral-900 dark:text-white">{(detailedUser.followers || []).length}</p>
-                      <p className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400">Followers</p>
+                    <div
+                      onClick={() => openFollowersModal(detailedUser)}
+                      className="bg-neutral-50 dark:bg-neutral-800/70 p-3 rounded-2xl border border-neutral-200 dark:border-white/20 text-center cursor-pointer group hover:border-purple-500 hover:bg-purple-50/50 dark:hover:bg-purple-950/20 transition-all"
+                      title="Click to modify followers count"
+                    >
+                      <p className="text-lg font-black text-neutral-900 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">
+                        {(detailedUser.followers || []).length}
+                      </p>
+                      <p className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400 flex items-center justify-center gap-1">
+                        <span>Followers</span>
+                        <Edit size={10} className="text-purple-500 opacity-70 group-hover:opacity-100" />
+                      </p>
                     </div>
 
                     <div className="bg-neutral-50 dark:bg-neutral-800/70 p-3 rounded-2xl border border-neutral-200 dark:border-white/20 text-center">
@@ -3148,6 +3239,47 @@ export const AdminPanel: React.FC = () => {
                 </div>
               </div>
 
+              {/* Followers Count Modifier */}
+              <div className="p-3 bg-purple-50/60 dark:bg-purple-950/30 rounded-2xl border border-purple-200/70 dark:border-purple-800/60">
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="font-bold text-neutral-800 dark:text-neutral-200 flex items-center gap-1.5 text-xs">
+                    <Users size={13} className="text-purple-600 dark:text-purple-400" />
+                    <span>Followers Count (Organic Followers)</span>
+                  </label>
+                  <span className="text-[10px] font-semibold text-purple-600 dark:text-purple-400">
+                    {editFormFollowers >= 100 ? '✓ Verification eligible' : `${100 - editFormFollowers} to 100`}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min={0}
+                    value={editFormFollowers}
+                    onChange={e => setEditFormFollowers(Math.max(0, parseInt(e.target.value) || 0))}
+                    className="w-full p-2 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl text-neutral-900 dark:text-white font-mono font-bold"
+                  />
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setEditFormFollowers(prev => prev + 10)}
+                      className="px-2 py-1.5 text-[10px] font-bold bg-neutral-200/80 dark:bg-neutral-700 hover:bg-neutral-300 dark:hover:bg-neutral-600 rounded-lg cursor-pointer text-neutral-800 dark:text-neutral-200"
+                    >
+                      +10
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditFormFollowers(100)}
+                      className="px-2 py-1.5 text-[10px] font-bold bg-purple-600 hover:bg-purple-700 text-white rounded-lg cursor-pointer whitespace-nowrap"
+                    >
+                      100 ✓
+                    </button>
+                  </div>
+                </div>
+                <p className="text-[10px] text-neutral-500 dark:text-neutral-400 mt-1">
+                  Admins can modify any user's followers count. Changes appear on their profile immediately and count as organic followers.
+                </p>
+              </div>
+
               {/* Verification & Tier Controls */}
               <div className="p-3 bg-neutral-50 dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 space-y-2.5">
                 <div className="flex items-center justify-between">
@@ -3278,6 +3410,151 @@ export const AdminPanel: React.FC = () => {
                   className="flex-1 py-2.5 px-4 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl cursor-pointer shadow-md transition-colors"
                 >
                   Save Profile Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 👥 ADMIN MODIFY ORGANIC FOLLOWERS MODAL */}
+      {/* ========================================================================= */}
+      {modifyingFollowersUser && (
+        <div className="fixed inset-0 z-70 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white dark:bg-neutral-900 rounded-3xl p-5 max-w-md w-full border border-neutral-200 dark:border-white/20 space-y-4 shadow-2xl text-xs animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-purple-100 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400">
+                  <Users size={18} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-neutral-900 dark:text-white">
+                    Modify Followers Count
+                  </h3>
+                  <p className="text-[11px] text-neutral-400">
+                    Set organic followers for @{modifyingFollowersUser.username}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setModifyingFollowersUser(null)}
+                className="p-1 rounded-lg text-neutral-400 hover:text-white hover:bg-neutral-800 cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* User Info Header */}
+            <div className="p-3 rounded-2xl bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200 dark:border-neutral-750 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <UserAvatar user={modifyingFollowersUser} size="md" />
+                <div>
+                  <div className="flex items-center gap-1.5 font-bold text-neutral-900 dark:text-white text-xs">
+                    <span>{modifyingFollowersUser.name}</span>
+                    {modifyingFollowersUser.isVerified && <VerifiedBadge size="xs" user={modifyingFollowersUser} />}
+                  </div>
+                  <span className="text-[11px] text-neutral-400">@{modifyingFollowersUser.username}</span>
+                </div>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] text-neutral-400 block uppercase font-semibold">Current Count</span>
+                <span className="font-bold text-sm text-purple-600 dark:text-purple-400">
+                  {(modifyingFollowersUser.followers || []).length} followers
+                </span>
+              </div>
+            </div>
+
+            <form onSubmit={handleSaveFollowersCount} className="space-y-3.5">
+              <div>
+                <label className="block font-bold text-neutral-800 dark:text-neutral-200 mb-1.5">
+                  New Followers Count (Only Followers Count)
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min={0}
+                    max={1000000}
+                    value={newFollowersCountInput}
+                    onChange={e => setNewFollowersCountInput(Math.max(0, parseInt(e.target.value) || 0))}
+                    className="w-full p-2.5 bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl text-neutral-900 dark:text-white font-mono font-bold text-sm focus:outline-none focus:ring-2 focus:ring-purple-600"
+                    placeholder="Enter follower count..."
+                    required
+                  />
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 text-xs font-semibold">
+                    followers
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick Presets */}
+              <div>
+                <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block mb-1.5">
+                  Quick Presets
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setNewFollowersCountInput(prev => prev + 10)}
+                    className="px-2.5 py-1 rounded-lg bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-750 text-neutral-700 dark:text-neutral-200 font-semibold cursor-pointer active:scale-95 transition-all text-xs"
+                  >
+                    +10
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewFollowersCountInput(prev => prev + 50)}
+                    className="px-2.5 py-1 rounded-lg bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-750 text-neutral-700 dark:text-neutral-200 font-semibold cursor-pointer active:scale-95 transition-all text-xs"
+                  >
+                    +50
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewFollowersCountInput(100)}
+                    className="px-2.5 py-1 rounded-lg bg-purple-100 hover:bg-purple-200 dark:bg-purple-950/60 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 font-bold border border-purple-300 dark:border-purple-800 cursor-pointer active:scale-95 transition-all text-xs"
+                  >
+                    Set 100 (Verification Eligible)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewFollowersCountInput(prev => prev + 500)}
+                    className="px-2.5 py-1 rounded-lg bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-200 font-semibold cursor-pointer active:scale-95 transition-all text-xs"
+                  >
+                    +500
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewFollowersCountInput(0)}
+                    className="px-2.5 py-1 rounded-lg bg-red-50 hover:bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400 font-semibold cursor-pointer active:scale-95 transition-all text-xs"
+                  >
+                    Clear to 0
+                  </button>
+                </div>
+              </div>
+
+              {/* Requirement explanation banner */}
+              <div className="p-3 rounded-xl bg-purple-50/70 dark:bg-purple-950/30 border border-purple-200/70 dark:border-purple-800/60 text-[11px] text-purple-900 dark:text-purple-200 space-y-1">
+                <div className="flex items-center gap-1 font-bold text-purple-700 dark:text-purple-300">
+                  <CheckCircle2 size={13} />
+                  <span>Real (Organic) Follower System</span>
+                </div>
+                <p className="leading-relaxed opacity-90">
+                  This change immediately reflects on @{modifyingFollowersUser.username}'s public profile. If set to 100 or more, the user unlocks the official "Apply for Verification" requirement in Settings.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setModifyingFollowersUser(null)}
+                  className="py-2.5 px-4 rounded-xl border border-neutral-200 dark:border-neutral-750 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 font-semibold cursor-pointer transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="py-2.5 px-5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold rounded-xl shadow-md shadow-purple-600/20 active:scale-95 transition-all cursor-pointer"
+                >
+                  Save Followers Count
                 </button>
               </div>
             </form>

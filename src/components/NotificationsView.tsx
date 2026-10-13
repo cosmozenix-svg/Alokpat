@@ -14,15 +14,18 @@ import {
   Settings,
   Search,
   X,
-  Sparkles,
   Volume2,
   VolumeX,
-  ExternalLink,
   ChevronRight,
-  Flame,
-  Laugh,
-  Award,
   Filter,
+  RefreshCw,
+  CheckSquare,
+  Square,
+  ShieldAlert,
+  ShieldCheck,
+  Eye,
+  EyeOff,
+  Sparkles,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { UserAvatar } from './UserAvatar';
@@ -30,6 +33,7 @@ import { VerifiedBadge } from './VerifiedBadge';
 import { PostCard } from './PostCard';
 import { AppNotification, Post, ReactionType } from '../types';
 import { formatRelativeTime, formatExactDateTime } from '../utils/formatters';
+import { safeGetStorage } from '../utils/storage';
 import {
   playNotificationSound,
   isSoundEnabled,
@@ -47,10 +51,14 @@ export const NotificationsView: React.FC = () => {
     getUserById,
     getPostById,
     markNotificationAsRead,
+    toggleNotificationRead,
     markAllNotificationsAsRead,
     clearNotification,
     clearAllNotifications,
     clearReadNotifications,
+    markBatchNotificationsAsRead,
+    markBatchNotificationsAsUnread,
+    deleteBatchNotifications,
     openUserProfile,
     toggleFollow,
     setIsAuthModalOpen,
@@ -70,8 +78,16 @@ export const NotificationsView: React.FC = () => {
     return 'default';
   });
 
+  // Batch Multi-Select Mode State
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
   // Selected post for modal detail preview
   const [selectedPostForDetail, setSelectedPostForDetail] = useState<{ post: Post; defaultComments: boolean } | null>(null);
+
+  // Selected official notice / broadcast for full modal view
+  const [selectedOfficialNotice, setSelectedOfficialNotice] = useState<AppNotification | null>(null);
 
   // Status feedback toast
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
@@ -110,6 +126,22 @@ export const NotificationsView: React.FC = () => {
     }
   };
 
+  // Refresh handler
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    setTimeout(() => {
+      setIsRefreshing(false);
+      showFeedback('Notifications updated');
+    }, 500);
+  };
+
+  // Batch selection handlers
+  const toggleSelectId = (id: string) => {
+    setSelectedIds(prev =>
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    );
+  };
+
   // Auth gate
   if (!currentUser) {
     return (
@@ -141,7 +173,7 @@ export const NotificationsView: React.FC = () => {
                 setAuthMode('login');
                 setIsAuthModalOpen(true);
               }}
-              className="flex-1 py-2.5 px-4 bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-200 font-semibold rounded-xl text-xs active:scale-95 transition-all cursor-pointer border border-neutral-200 dark:border-neutral-700"
+              className="flex-1 py-2.5 px-4 bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-750 text-neutral-800 dark:text-neutral-200 font-semibold rounded-xl text-xs active:scale-95 transition-all cursor-pointer border border-neutral-200 dark:border-neutral-700"
             >
               Sign In
             </button>
@@ -151,12 +183,19 @@ export const NotificationsView: React.FC = () => {
     );
   }
 
-  // Filter user's notifications
+  // Filter user's notifications with type-safe ID comparison and dismissed broadcast checking
   const userNotifications = useMemo(() => {
-    return notifications.filter(
-      n => n.userId === currentUser.id || n.userId === 'all'
-    );
-  }, [notifications, currentUser.id]);
+    const currentId = Number(currentUser.id);
+    const dismissedBroadcasts = safeGetStorage<string[]>(`alokpat_dismissed_broadcasts_${currentId}`, []);
+    return notifications
+      .filter(n => {
+        if (n.userId === 'all') {
+          return !dismissedBroadcasts.includes(n.id);
+        }
+        return Number(n.userId) === currentId;
+      })
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [notifications, currentUser]);
 
   const unreadCount = useMemo(() => {
     return userNotifications.filter(n => !n.isRead).length;
@@ -200,13 +239,13 @@ export const NotificationsView: React.FC = () => {
       // Search query filter
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase().trim();
-        const titleMatch = n.title.toLowerCase().includes(query);
-        const messageMatch = n.message.toLowerCase().includes(query);
+        const titleMatch = n.title?.toLowerCase().includes(query);
+        const messageMatch = n.message?.toLowerCase().includes(query);
         const actor = n.actorId ? getUserById(n.actorId) : undefined;
         const actorMatch =
           actor &&
-          (actor.name.toLowerCase().includes(query) ||
-            actor.username.toLowerCase().includes(query));
+          (actor.name?.toLowerCase().includes(query) ||
+            actor.username?.toLowerCase().includes(query));
 
         if (!titleMatch && !messageMatch && !actorMatch) return false;
       }
@@ -215,8 +254,43 @@ export const NotificationsView: React.FC = () => {
     });
   }, [userNotifications, activeFilter, searchQuery, getUserById]);
 
+  // Select all / deselect all
+  const handleSelectAll = () => {
+    if (selectedIds.length === filteredNotifications.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(filteredNotifications.map(n => n.id));
+    }
+  };
+
+  const handleBatchMarkRead = () => {
+    if (selectedIds.length === 0) return;
+    markBatchNotificationsAsRead(selectedIds);
+    showFeedback(`${selectedIds.length} marked as read`);
+    setSelectedIds([]);
+  };
+
+  const handleBatchMarkUnread = () => {
+    if (selectedIds.length === 0) return;
+    markBatchNotificationsAsUnread(selectedIds);
+    showFeedback(`${selectedIds.length} marked as unread`);
+    setSelectedIds([]);
+  };
+
+  const handleBatchDelete = () => {
+    if (selectedIds.length === 0) return;
+    deleteBatchNotifications(selectedIds);
+    showFeedback(`${selectedIds.length} notifications deleted`);
+    setSelectedIds([]);
+  };
+
   // Handle clicking on a notification item
   const handleNotificationClick = (notification: AppNotification) => {
+    if (isSelectionMode) {
+      toggleSelectId(notification.id);
+      return;
+    }
+
     // 1. Mark as read
     if (!notification.isRead) {
       markNotificationAsRead(notification.id);
@@ -233,6 +307,12 @@ export const NotificationsView: React.FC = () => {
       } else {
         showFeedback('Referenced post is no longer available');
       }
+    } else if (
+      notification.type === 'admin_notice' ||
+      notification.type === 'admin_warning' ||
+      notification.type === 'broadcast'
+    ) {
+      setSelectedOfficialNotice(notification);
     } else if (notification.actorId) {
       // Open user profile
       openUserProfile(notification.actorId);
@@ -297,7 +377,36 @@ export const NotificationsView: React.FC = () => {
 
           {/* Quick Action Buttons */}
           <div className="flex items-center gap-1.5">
-            {unreadCount > 0 && (
+            {/* Refresh Button */}
+            <button
+              onClick={handleRefresh}
+              className={`p-2 rounded-xl bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-750 text-neutral-700 dark:text-neutral-300 transition-all active:scale-95 cursor-pointer border border-neutral-200/70 dark:border-neutral-700 ${
+                isRefreshing ? 'animate-spin text-purple-600 dark:text-purple-400' : ''
+              }`}
+              title="Refresh Notifications"
+            >
+              <RefreshCw size={14} />
+            </button>
+
+            {/* Batch Select Mode Toggle */}
+            <button
+              onClick={() => {
+                setIsSelectionMode(!isSelectionMode);
+                setSelectedIds([]);
+              }}
+              className={`px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1 transition-all active:scale-95 cursor-pointer border ${
+                isSelectionMode
+                  ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
+                  : 'bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-750 text-neutral-700 dark:text-neutral-300 border-neutral-200/70 dark:border-neutral-700'
+              }`}
+              title={isSelectionMode ? 'Cancel Selection Mode' : 'Select Multiple Notifications'}
+            >
+              <CheckSquare size={13} />
+              <span className="hidden sm:inline">{isSelectionMode ? 'Cancel' : 'Select'}</span>
+            </button>
+
+            {/* Mark All Read */}
+            {unreadCount > 0 && !isSelectionMode && (
               <button
                 onClick={() => {
                   markAllNotificationsAsRead();
@@ -311,15 +420,76 @@ export const NotificationsView: React.FC = () => {
               </button>
             )}
 
+            {/* Settings Modal Toggle */}
             <button
               onClick={() => setIsSettingsOpen(true)}
               className="p-2 rounded-xl bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-750 text-neutral-700 dark:text-neutral-300 transition-all active:scale-95 cursor-pointer border border-neutral-200/70 dark:border-neutral-700"
               title="Notification Settings & Preferences"
             >
-              <Settings size={15} />
+              <Settings size={14} />
             </button>
           </div>
         </div>
+
+        {/* Batch Actions Bar (when Selection Mode is Active) */}
+        {isSelectionMode && (
+          <div className="mt-3 p-2.5 rounded-xl bg-purple-50/80 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 flex items-center justify-between gap-2 animate-in fade-in slide-in-from-top-1 duration-150">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleSelectAll}
+                className="px-2 py-1 rounded-lg bg-white dark:bg-neutral-850 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-800 dark:text-neutral-200 text-xs font-semibold flex items-center gap-1.5 border border-purple-200 dark:border-purple-800 transition-colors"
+              >
+                {selectedIds.length === filteredNotifications.length && filteredNotifications.length > 0 ? (
+                  <CheckSquare size={13} className="text-purple-600 dark:text-purple-400" />
+                ) : (
+                  <Square size={13} className="text-neutral-400" />
+                )}
+                <span>
+                  {selectedIds.length === filteredNotifications.length && filteredNotifications.length > 0
+                    ? 'Deselect All'
+                    : 'Select All'}
+                </span>
+              </button>
+              <span className="text-[11px] font-bold text-purple-700 dark:text-purple-300">
+                {selectedIds.length} selected
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                disabled={selectedIds.length === 0}
+                onClick={handleBatchMarkRead}
+                className="px-2 py-1 rounded-lg bg-white dark:bg-neutral-850 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-800 dark:text-neutral-200 text-xs font-semibold flex items-center gap-1 border border-neutral-200 dark:border-neutral-750 transition-colors disabled:opacity-40"
+                title="Mark Selected as Read"
+              >
+                <Check size={12} className="text-purple-600" />
+                <span className="hidden sm:inline">Read</span>
+              </button>
+              <button
+                type="button"
+                disabled={selectedIds.length === 0}
+                onClick={handleBatchMarkUnread}
+                className="px-2 py-1 rounded-lg bg-white dark:bg-neutral-850 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-800 dark:text-neutral-200 text-xs font-semibold flex items-center gap-1 border border-neutral-200 dark:border-neutral-750 transition-colors disabled:opacity-40"
+                title="Mark Selected as Unread"
+              >
+                <EyeOff size={12} className="text-neutral-500" />
+                <span className="hidden sm:inline">Unread</span>
+              </button>
+              <button
+                type="button"
+                disabled={selectedIds.length === 0}
+                onClick={handleBatchDelete}
+                className="px-2 py-1 rounded-lg bg-red-50 hover:bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400 text-xs font-semibold flex items-center gap-1 border border-red-200 dark:border-red-900/50 transition-colors disabled:opacity-40"
+                title="Delete Selected"
+              >
+                <Trash2 size={12} />
+                <span className="hidden sm:inline">Delete</span>
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Live In-App Search Bar */}
         <div className="relative mt-3.5">
@@ -456,7 +626,7 @@ export const NotificationsView: React.FC = () => {
                 setSearchQuery('');
                 setActiveFilter('all');
               }}
-              className="mt-3.5 px-3 py-1.5 rounded-xl bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-xs font-semibold text-neutral-700 dark:text-neutral-200 active:scale-95 transition-all cursor-pointer inline-flex items-center gap-1.5"
+              className="mt-3.5 px-3 py-1.5 rounded-xl bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-750 text-xs font-semibold text-neutral-700 dark:text-neutral-200 active:scale-95 transition-all cursor-pointer inline-flex items-center gap-1.5"
             >
               <Filter size={12} />
               <span>Reset filter</span>
@@ -477,13 +647,16 @@ export const NotificationsView: React.FC = () => {
 
             const isFollowingActor = actor ? currentUser.following.includes(actor.id) : false;
             const isSelf = actor ? currentUser.id === actor.id : false;
+            const isSelected = selectedIds.includes(n.id);
 
             return (
               <article
                 key={n.id}
                 onClick={() => handleNotificationClick(n)}
                 className={`group relative rounded-2xl p-3.5 transition-all cursor-pointer border shadow-2xs hover:shadow-xs ${
-                  !n.isRead
+                  isSelected
+                    ? 'ring-2 ring-purple-600 bg-purple-50/70 dark:bg-purple-950/40 border-purple-300 dark:border-purple-700'
+                    : !n.isRead
                     ? 'bg-purple-50/50 dark:bg-purple-950/20 border-purple-200 dark:border-purple-800/70 hover:border-purple-300 dark:hover:border-purple-700'
                     : isWarning
                     ? 'bg-red-50/40 dark:bg-red-950/20 border-red-200 dark:border-red-900/50 hover:border-red-300'
@@ -495,7 +668,7 @@ export const NotificationsView: React.FC = () => {
                 }`}
               >
                 {/* Unread Indicator Dot */}
-                {!n.isRead && (
+                {!n.isRead && !isSelectionMode && (
                   <span
                     className="absolute top-3.5 right-3.5 w-2 h-2 rounded-full bg-purple-600 shadow-sm shadow-purple-600/50"
                     title="Unread notification"
@@ -503,6 +676,23 @@ export const NotificationsView: React.FC = () => {
                 )}
 
                 <div className="flex items-start gap-3">
+                  {/* Selection Mode Checkbox */}
+                  {isSelectionMode && (
+                    <div
+                      onClick={e => {
+                        e.stopPropagation();
+                        toggleSelectId(n.id);
+                      }}
+                      className="mt-1 flex-shrink-0 cursor-pointer p-0.5"
+                    >
+                      {isSelected ? (
+                        <CheckSquare size={17} className="text-purple-600 dark:text-purple-400" />
+                      ) : (
+                        <Square size={17} className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300" />
+                      )}
+                    </div>
+                  )}
+
                   {/* Left Avatar or Type Icon */}
                   <div className="relative flex-shrink-0">
                     {actor ? (
@@ -640,7 +830,7 @@ export const NotificationsView: React.FC = () => {
                       </div>
                     )}
 
-                    {/* Footer Row: Timestamp & Individual Delete */}
+                    {/* Footer Row: Timestamp & Actions */}
                     <div className="mt-2.5 flex items-center justify-between text-[11px] text-neutral-400 dark:text-neutral-400 pt-1 border-t border-neutral-100 dark:border-neutral-800/60">
                       <span title={formatExactDateTime(n.createdAt)}>
                         {formatRelativeTime(n.createdAt)}
@@ -651,13 +841,15 @@ export const NotificationsView: React.FC = () => {
                         <button
                           onClick={e => {
                             e.stopPropagation();
-                            if (!n.isRead) {
-                              markNotificationAsRead(n.id);
-                              showFeedback('Marked as read');
-                            }
+                            toggleNotificationRead(n.id);
+                            showFeedback(n.isRead ? 'Marked as unread' : 'Marked as read');
                           }}
-                          className="hover:text-purple-600 dark:hover:text-purple-400 p-0.5"
-                          title={n.isRead ? 'Already read' : 'Mark as read'}
+                          className={`p-1 rounded-md transition-colors ${
+                            n.isRead
+                              ? 'text-neutral-400 hover:text-purple-600 hover:bg-neutral-100 dark:hover:bg-neutral-800'
+                              : 'text-purple-600 hover:text-purple-700 bg-purple-50 dark:bg-purple-950/60'
+                          }`}
+                          title={n.isRead ? 'Mark as unread' : 'Mark as read'}
                         >
                           {n.isRead ? <Check size={12} /> : <CheckCheck size={12} />}
                         </button>
@@ -669,7 +861,7 @@ export const NotificationsView: React.FC = () => {
                             clearNotification(n.id);
                             showFeedback('Notification removed');
                           }}
-                          className="hover:text-red-500 dark:hover:text-red-400 p-0.5"
+                          className="hover:text-red-500 dark:hover:text-red-400 p-1 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
                           title="Delete notification"
                         >
                           <Trash2 size={12} />
@@ -681,6 +873,95 @@ export const NotificationsView: React.FC = () => {
               </article>
             );
           })}
+        </div>
+      )}
+
+      {/* Official Notice / Broadcast Interactive Modal */}
+      {selectedOfficialNotice && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-150"
+          onClick={() => setSelectedOfficialNotice(null)}
+        >
+          <div
+            className="w-full max-w-md bg-white dark:bg-neutral-900 rounded-3xl border border-neutral-200 dark:border-neutral-800 shadow-2xl p-5 space-y-4 animate-in zoom-in-95 duration-150"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div
+                  className={`p-2 rounded-2xl text-white ${
+                    selectedOfficialNotice.type === 'admin_warning'
+                      ? 'bg-red-600'
+                      : selectedOfficialNotice.type === 'broadcast'
+                      ? 'bg-amber-600'
+                      : 'bg-gradient-to-r from-purple-600 to-indigo-600'
+                  }`}
+                >
+                  {selectedOfficialNotice.type === 'admin_warning' ? (
+                    <ShieldAlert size={18} />
+                  ) : (
+                    <ShieldCheck size={18} />
+                  )}
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-neutral-900 dark:text-white">
+                    {selectedOfficialNotice.title}
+                  </h3>
+                  <p className="text-[11px] text-neutral-400">
+                    Official Communication • Alokpat Administration
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSelectedOfficialNotice(null)}
+                className="p-1 rounded-lg text-neutral-400 hover:text-neutral-600 dark:hover:text-white"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Notice Body */}
+            <div className="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-850 border border-neutral-200/80 dark:border-neutral-800 space-y-3">
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="font-semibold text-neutral-500 dark:text-neutral-400">
+                  Issued: {formatExactDateTime(selectedOfficialNotice.createdAt)}
+                </span>
+                <span
+                  className={`font-mono font-bold px-2 py-0.5 rounded-full text-[10px] ${
+                    selectedOfficialNotice.urgency === 'alert' || selectedOfficialNotice.urgency === 'warning'
+                      ? 'bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-300'
+                      : 'bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300'
+                  }`}
+                >
+                  {selectedOfficialNotice.urgency?.toUpperCase() || 'INFO'}
+                </span>
+              </div>
+
+              <p className="text-xs text-neutral-800 dark:text-neutral-200 leading-relaxed font-normal">
+                {selectedOfficialNotice.message}
+              </p>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  if (!selectedOfficialNotice.isRead) {
+                    markNotificationAsRead(selectedOfficialNotice.id);
+                  }
+                  setSelectedOfficialNotice(null);
+                  showFeedback('Notice acknowledged');
+                }}
+                className="w-full py-2.5 px-4 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold rounded-xl text-xs shadow-md shadow-purple-600/20 active:scale-95 transition-all cursor-pointer text-center"
+              >
+                Acknowledge & Close
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -742,7 +1023,7 @@ export const NotificationsView: React.FC = () => {
               </div>
               <button
                 onClick={() => setIsSettingsOpen(false)}
-                className="p-1 text-neutral-400 hover:text-neutral-600 dark:hover:text-white rounded-md"
+                className="p-1 text-neutral-400 hover:text-neutral-600 dark:hover:text-white rounded-md cursor-pointer"
               >
                 <X size={16} />
               </button>
