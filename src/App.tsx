@@ -14,6 +14,7 @@ import { AdminPanel } from './components/AdminPanel';
 import { ReportModal } from './components/ReportModal';
 import { AppNotification } from './types';
 import { playNotificationSound, sendBrowserNotification } from './utils/notificationAudio';
+import { sortNotificationsLatestFirst } from './utils/formatters';
 
 /**
  * Checks whether the current URL represents an admin route
@@ -76,9 +77,9 @@ const MainLayout: React.FC = () => {
     }
 
     if (unreadNotificationCount > prevUnreadCountRef.current && currentUser) {
-      const userNotifs = notifications
-        .filter(n => Number(n.userId) === Number(currentUser.id) || n.userId === 'all')
-        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      const userNotifs = sortNotificationsLatestFirst(
+        notifications.filter(n => Number(n.userId) === Number(currentUser.id) || n.userId === 'all')
+      );
       const latest = userNotifs[0];
       if (latest && !latest.isRead && activeTab !== 'notifications') {
         setLiveToast(latest);

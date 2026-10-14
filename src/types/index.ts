@@ -77,6 +77,8 @@ export interface Post {
   isPinned?: boolean;
   location?: string;
   viewsCount?: number;
+  linkUrl?: string; // Optional website / redirection link
+  linkButtonText?: string; // Optional button label (e.g. "Download", "Visit Website", "Subscribe")
 }
 
 export interface Comment {

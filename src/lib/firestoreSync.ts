@@ -9,6 +9,7 @@ import {
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from './firebase';
 import { User, Post, Comment, AppNotification, ContentReport } from '../types';
+import { sortNotificationsLatestFirst } from '../utils/formatters';
 
 export const USERS_COL = 'users';
 export const POSTS_COL = 'posts';
@@ -170,14 +171,16 @@ export function subscribeToDatabase(callbacks: {
     collection(db, NOTIFICATIONS_COL),
     snapshot => {
       if (!snapshot.empty) {
-        const notifs = snapshot.docs.map(d => {
-          const raw = d.data();
-          return {
-            ...raw,
-            userId: Number(raw.userId),
-          } as AppNotification;
-        });
-        callbacks.onNotifications(notifs);
+        const notifs = snapshot.docs
+          .map(d => {
+            const raw = d.data();
+            return {
+              ...raw,
+              userId: raw.userId === 'all' ? 'all' : Number(raw.userId),
+            } as AppNotification;
+          });
+        const sorted = sortNotificationsLatestFirst(notifs);
+        callbacks.onNotifications(sorted);
       }
     },
     error => {

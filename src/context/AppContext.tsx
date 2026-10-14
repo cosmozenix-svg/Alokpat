@@ -20,6 +20,7 @@ import {
   validateRealEmail,
   cleanPhoneDigits,
 } from '../utils/validators';
+import { sortNotificationsLatestFirst } from '../utils/formatters';
 
 interface AppContextType {
   // Theme
@@ -51,7 +52,15 @@ interface AppContextType {
   // Posts
   posts: Post[];
   getPostById: (postId: string) => Post | undefined;
-  createPost: (data: { caption: string; images: string[]; keywords: string[]; hideComments: boolean; isAIPost: boolean }) => void;
+  createPost: (data: {
+    caption: string;
+    images: string[];
+    keywords: string[];
+    hideComments: boolean;
+    isAIPost: boolean;
+    linkUrl?: string;
+    linkButtonText?: string;
+  }) => void;
   deletePost: (postId: string) => void;
   toggleLikePost: (postId: string) => void;
   toggleReaction: (postId: string, reaction: ReactionType) => void;
@@ -94,6 +103,7 @@ interface AppContextType {
 
   // Notifications
   notifications: AppNotification[];
+  userNotifications: AppNotification[];
   unreadNotificationCount: number;
   markNotificationAsRead: (id: string) => void;
   toggleNotificationRead: (id: string) => void;
@@ -217,7 +227,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [notifications, setNotifications] = useState<AppNotification[]>(() => {
-    return safeGetStorage<AppNotification[]>('alokpat_real_notifications', INITIAL_NOTIFICATIONS);
+    return sortNotificationsLatestFirst(safeGetStorage<AppNotification[]>('alokpat_real_notifications', INITIAL_NOTIFICATIONS));
   });
 
   // Admin State
@@ -246,7 +256,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (idbPosts && idbPosts.length > 0) setPosts(idbPosts);
         if (idbComments && idbComments.length > 0) setComments(idbComments);
         if (idbReports && idbReports.length > 0) setReports(idbReports);
-        if (idbNotifs && idbNotifs.length > 0) setNotifications(idbNotifs);
+        if (idbNotifs && idbNotifs.length > 0) setNotifications(sortNotificationsLatestFirst(idbNotifs));
       } catch (e) {
         // Fallback silently to localStorage data
       }
@@ -287,7 +297,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       },
       onNotifications: remoteNotifs => {
         if (!active) return;
-        if (remoteNotifs.length > 0) setNotifications(remoteNotifs);
+        if (remoteNotifs.length > 0) setNotifications(sortNotificationsLatestFirst(remoteNotifs));
       },
       onReports: remoteReports => {
         if (!active) return;
@@ -492,7 +502,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: new Date().toISOString(),
       urgency: 'info'
     };
-    setNotifications(prev => [welcomeNotif, ...prev]);
+    setNotifications(prev => sortNotificationsLatestFirst([welcomeNotif, ...prev]));
     syncNotificationToDb(welcomeNotif).catch(() => {});
 
     return { success: true };
@@ -556,7 +566,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Posts Methods
-  const createPost = (data: { caption: string; images: string[]; keywords: string[]; hideComments: boolean; isAIPost: boolean }) => {
+  const createPost = (data: {
+    caption: string;
+    images: string[];
+    keywords: string[];
+    hideComments: boolean;
+    isAIPost: boolean;
+    linkUrl?: string;
+    linkButtonText?: string;
+  }) => {
     if (!currentUser) {
       setIsAuthModalOpen(true);
       return;
@@ -569,6 +587,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       keywords: data.keywords,
       hideComments: data.hideComments,
       isAIPost: data.isAIPost,
+      linkUrl: data.linkUrl?.trim() || undefined,
+      linkButtonText: data.linkButtonText?.trim() || undefined,
       likes: [],
       commentsCount: 0,
       createdAt: new Date().toISOString(),
@@ -655,7 +675,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 isRead: false,
                 createdAt: new Date().toISOString()
               };
-              setNotifications(nPrev => [notif, ...nPrev]);
+              setNotifications(nPrev => sortNotificationsLatestFirst([notif, ...nPrev]));
               syncNotificationToDb(notif).catch(() => {});
             }
           }
@@ -759,7 +779,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               isRead: false,
               createdAt: new Date().toISOString()
             };
-            setNotifications(nPrev => [notif, ...nPrev]);
+            setNotifications(nPrev => sortNotificationsLatestFirst([notif, ...nPrev]));
             syncNotificationToDb(notif).catch(() => {});
           }
           const updatedPost = { ...p, commentsCount: (p.commentsCount || 0) + 1 };
@@ -935,7 +955,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isRead: false,
         createdAt: new Date().toISOString()
       };
-      setNotifications(prev => [notif, ...prev]);
+      setNotifications(prev => sortNotificationsLatestFirst([notif, ...prev]));
       syncNotificationToDb(notif).catch(() => {});
     }
   };
@@ -1088,7 +1108,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: new Date().toISOString(),
       urgency: 'info',
     };
-    setNotifications(prev => [notif, ...prev]);
+    setNotifications(prev => sortNotificationsLatestFirst([notif, ...prev]));
     syncNotificationToDb(notif).catch(() => {});
 
     return {
@@ -1241,15 +1261,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const userNotifications = currentUser
-    ? notifications
-        .filter(n => {
+    ? sortNotificationsLatestFirst(
+        notifications.filter(n => {
           if (n.userId === 'all') {
             const dismissedBroadcasts = safeGetStorage<string[]>(`alokpat_dismissed_broadcasts_${currentUser.id}`, []);
             return !dismissedBroadcasts.includes(n.id);
           }
           return Number(n.userId) === Number(currentUser.id);
         })
-        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      )
     : [];
   const unreadNotificationCount = userNotifications.filter(n => !n.isRead).length;
 
@@ -1299,7 +1319,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             createdAt: new Date().toISOString(),
             urgency: 'info',
           };
-          setNotifications(nPrev => [notif, ...nPrev]);
+          setNotifications(nPrev => sortNotificationsLatestFirst([notif, ...nPrev]));
           syncNotificationToDb(notif).catch(() => {});
 
           const updatedUser: User = {
@@ -1360,7 +1380,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: new Date().toISOString(),
       urgency: 'info',
     };
-    setNotifications(prev => [notif, ...prev]);
+    setNotifications(prev => sortNotificationsLatestFirst([notif, ...prev]));
     syncNotificationToDb(notif).catch(() => {});
   };
 
@@ -1418,7 +1438,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: new Date().toISOString(),
       urgency: 'info',
     };
-    setNotifications(prev => [notif, ...prev]);
+    setNotifications(prev => sortNotificationsLatestFirst([notif, ...prev]));
     syncNotificationToDb(notif).catch(() => {});
   };
 
@@ -1461,7 +1481,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: new Date().toISOString(),
       urgency: 'warning',
     };
-    setNotifications(prev => [notif, ...prev]);
+    setNotifications(prev => sortNotificationsLatestFirst([notif, ...prev]));
     syncNotificationToDb(notif).catch(() => {});
   };
 
@@ -1510,7 +1530,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               createdAt: new Date().toISOString(),
               urgency: 'alert'
             };
-            setNotifications(nPrev => [notif, ...nPrev]);
+            setNotifications(nPrev => sortNotificationsLatestFirst([notif, ...nPrev]));
             syncNotificationToDb(notif).catch(() => {});
 
             if (currentUserId === userId) {
@@ -1559,7 +1579,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: new Date().toISOString(),
       urgency: 'warning'
     };
-    setNotifications(prev => [notif, ...prev]);
+    setNotifications(prev => sortNotificationsLatestFirst([notif, ...prev]));
     syncNotificationToDb(notif).catch(() => {});
   };
 
@@ -1579,7 +1599,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: new Date().toISOString(),
       urgency
     };
-    setNotifications(prev => [notif, ...prev]);
+    setNotifications(prev => sortNotificationsLatestFirst([notif, ...prev]));
     syncNotificationToDb(notif).catch(() => {});
   };
 
@@ -1598,7 +1618,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: new Date().toISOString(),
       urgency
     };
-    setNotifications(prev => [notif, ...prev]);
+    setNotifications(prev => sortNotificationsLatestFirst([notif, ...prev]));
     syncNotificationToDb(notif).catch(() => {});
   };
 
@@ -1686,7 +1706,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: new Date().toISOString(),
       urgency: 'info',
     };
-    setNotifications(prev => [notif, ...prev]);
+    setNotifications(prev => sortNotificationsLatestFirst([notif, ...prev]));
     syncNotificationToDb(notif).catch(() => {});
   };
 
@@ -1844,6 +1864,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         openReportModal,
         closeReportModal,
         notifications,
+        userNotifications,
         unreadNotificationCount,
         markNotificationAsRead,
         toggleNotificationRead,

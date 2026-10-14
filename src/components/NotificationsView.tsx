@@ -5,7 +5,6 @@ import {
   MessageCircle,
   UserPlus,
   Shield,
-  AlertTriangle,
   AlertCircle,
   Megaphone,
   CheckCheck,
@@ -23,16 +22,21 @@ import {
   Square,
   ShieldAlert,
   ShieldCheck,
-  Eye,
-  EyeOff,
+  BadgeCheck,
+  Flame,
+  Laugh,
   Sparkles,
+  Zap,
+  HeartCrack,
+  TrendingUp,
+  EyeOff,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { UserAvatar } from './UserAvatar';
 import { VerifiedBadge } from './VerifiedBadge';
 import { PostCard } from './PostCard';
-import { AppNotification, Post, ReactionType } from '../types';
-import { formatRelativeTime, formatExactDateTime } from '../utils/formatters';
+import { AppNotification, Post, ReactionType, User } from '../types';
+import { formatRelativeTime, formatExactDateTime, sortNotificationsLatestFirst } from '../utils/formatters';
 import { safeGetStorage } from '../utils/storage';
 import {
   playNotificationSound,
@@ -42,7 +46,238 @@ import {
   sendBrowserNotification,
 } from '../utils/notificationAudio';
 
-type NotificationFilterType = 'all' | 'unread' | 'comments' | 'reactions' | 'follows' | 'official';
+type NotificationFilterType = 'all' | 'unread' | 'follows' | 'verification' | 'reactions' | 'comments' | 'official';
+
+interface NotificationTypeMeta {
+  category: 'verification' | 'follow' | 'reaction' | 'comment' | 'system' | 'broadcast' | 'warning';
+  icon: React.ReactNode;
+  miniIcon: React.ReactNode;
+  gradientBg: string;
+  badgeBg: string;
+  badgeText: string;
+  typeTitle: string;
+}
+
+/**
+ * Maps each notification to distinct, specialized icons, gradients, and badges.
+ * Specific icons:
+ * - Verification: BadgeCheck / ShieldCheck (Royal Blue)
+ * - Followers: UserPlus (Emerald Green)
+ * - Followers Update: TrendingUp (Purple)
+ * - System: Shield (Violet)
+ * - Broadcast: Megaphone (Amber/Orange)
+ * - Warning/Alert: ShieldAlert (Crimson Red)
+ * - Comment: MessageCircle (Indigo)
+ * - Reactions: Heart (Rose), Flame (Amber), Laugh (Yellow), Sparkles (Emerald), Zap (Cyan), HeartCrack (Blue)
+ */
+function getNotificationTypeMeta(n: AppNotification): NotificationTypeMeta {
+  const titleLower = (n.title || '').toLowerCase();
+  const msgLower = (n.message || '').toLowerCase();
+  const idLower = (n.id || '').toLowerCase();
+
+  // 1. Official Verification Notifications (Application submitted, approved, rejected, tier update, etc.)
+  const isVerification =
+    titleLower.includes('verification') ||
+    titleLower.includes('verified') ||
+    titleLower.includes('badge tier') ||
+    msgLower.includes('verification application') ||
+    msgLower.includes('verification badge') ||
+    msgLower.includes('officially verified') ||
+    msgLower.includes('badge tier') ||
+    idLower.includes('verify') ||
+    idLower.includes('badge');
+
+  if (isVerification) {
+    return {
+      category: 'verification',
+      icon: <BadgeCheck size={22} className="text-white" />,
+      miniIcon: <BadgeCheck size={12} className="text-blue-500 dark:text-blue-400" />,
+      gradientBg: 'bg-gradient-to-tr from-blue-600 via-indigo-600 to-cyan-500 shadow-blue-500/25 ring-2 ring-blue-400/20',
+      badgeBg: 'bg-blue-50 dark:bg-blue-950/80 border border-blue-200 dark:border-blue-800',
+      badgeText: 'text-blue-700 dark:text-blue-300',
+      typeTitle: 'Verification',
+    };
+  }
+
+  // 2. Followers Count Update by Administration
+  if (
+    titleLower.includes('followers count updated') ||
+    msgLower.includes('follower count') ||
+    msgLower.includes('organic follower count') ||
+    idLower.includes('followers-update')
+  ) {
+    return {
+      category: 'system',
+      icon: <TrendingUp size={22} className="text-white" />,
+      miniIcon: <TrendingUp size={12} className="text-purple-500 dark:text-purple-400" />,
+      gradientBg: 'bg-gradient-to-tr from-purple-600 to-indigo-600 shadow-purple-500/25 ring-2 ring-purple-400/20',
+      badgeBg: 'bg-purple-50 dark:bg-purple-950/80 border border-purple-200 dark:border-purple-800',
+      badgeText: 'text-purple-700 dark:text-purple-300',
+      typeTitle: 'Followers Update',
+    };
+  }
+
+  // 3. Follower Related Notifications (Someone followed you)
+  if (
+    n.type === 'follow' ||
+    titleLower.includes('started following') ||
+    titleLower.includes('new follower') ||
+    msgLower.includes('started following') ||
+    idLower.includes('follow')
+  ) {
+    return {
+      category: 'follow',
+      icon: <UserPlus size={22} className="text-white" />,
+      miniIcon: <UserPlus size={12} className="text-emerald-500 dark:text-emerald-400" />,
+      gradientBg: 'bg-gradient-to-tr from-emerald-500 to-teal-600 shadow-emerald-500/25 ring-2 ring-emerald-400/20',
+      badgeBg: 'bg-emerald-50 dark:bg-emerald-950/80 border border-emerald-200 dark:border-emerald-800',
+      badgeText: 'text-emerald-700 dark:text-emerald-300',
+      typeTitle: 'New Follower',
+    };
+  }
+
+  // 4. Security Warnings & Moderation Alerts
+  if (
+    n.type === 'admin_warning' ||
+    n.urgency === 'alert' ||
+    n.urgency === 'warning' ||
+    titleLower.includes('warning') ||
+    titleLower.includes('banned') ||
+    titleLower.includes('suspended') ||
+    idLower.includes('warn') ||
+    idLower.includes('ban')
+  ) {
+    return {
+      category: 'warning',
+      icon: <ShieldAlert size={22} className="text-white" />,
+      miniIcon: <ShieldAlert size={12} className="text-rose-500 dark:text-rose-400" />,
+      gradientBg: 'bg-gradient-to-tr from-red-600 to-rose-600 shadow-red-500/25 ring-2 ring-rose-400/20',
+      badgeBg: 'bg-red-50 dark:bg-red-950/80 border border-red-200 dark:border-red-800',
+      badgeText: 'text-red-700 dark:text-red-300',
+      typeTitle: 'Security Alert',
+    };
+  }
+
+  // 5. Official Broadcast Announcements
+  if (n.type === 'broadcast' || n.userId === 'all' || idLower.includes('broadcast') || titleLower.includes('announcement')) {
+    return {
+      category: 'broadcast',
+      icon: <Megaphone size={22} className="text-white" />,
+      miniIcon: <Megaphone size={12} className="text-amber-500 dark:text-amber-400" />,
+      gradientBg: 'bg-gradient-to-tr from-amber-500 to-orange-600 shadow-amber-500/25 ring-2 ring-amber-400/20',
+      badgeBg: 'bg-amber-50 dark:bg-amber-950/80 border border-amber-200 dark:border-amber-800',
+      badgeText: 'text-amber-700 dark:text-amber-300',
+      typeTitle: 'Broadcast',
+    };
+  }
+
+  // 6. System / Administrative Notices
+  if (n.type === 'admin_notice' || titleLower.includes('notice') || titleLower.includes('welcome') || idLower.includes('notice') || idLower.includes('welcome')) {
+    return {
+      category: 'system',
+      icon: <Shield size={22} className="text-white" />,
+      miniIcon: <Shield size={12} className="text-purple-500 dark:text-purple-400" />,
+      gradientBg: 'bg-gradient-to-tr from-purple-600 to-violet-700 shadow-purple-500/25 ring-2 ring-purple-400/20',
+      badgeBg: 'bg-purple-50 dark:bg-purple-950/80 border border-purple-200 dark:border-purple-800',
+      badgeText: 'text-purple-700 dark:text-purple-300',
+      typeTitle: 'System Notice',
+    };
+  }
+
+  // 7. Comments
+  if (n.type === 'comment' || idLower.includes('comm') || titleLower.includes('comment')) {
+    return {
+      category: 'comment',
+      icon: <MessageCircle size={22} className="text-white fill-white/20" />,
+      miniIcon: <MessageCircle size={12} className="text-blue-500 dark:text-blue-400 fill-blue-500/20" />,
+      gradientBg: 'bg-gradient-to-tr from-blue-500 to-indigo-600 shadow-blue-500/25 ring-2 ring-indigo-400/20',
+      badgeBg: 'bg-blue-50 dark:bg-blue-950/80 border border-blue-200 dark:border-blue-800',
+      badgeText: 'text-blue-700 dark:text-blue-300',
+      typeTitle: 'Comment',
+    };
+  }
+
+  // 8. Reactions (Heart, Flame, Laugh, Clap, Wow, Sad)
+  if (n.type === 'like' || n.type === 'reaction' || idLower.includes('reaction') || titleLower.includes('reaction') || titleLower.includes('like')) {
+    const rType = n.reactionType;
+    if (rType === 'fire') {
+      return {
+        category: 'reaction',
+        icon: <Flame size={22} className="text-white fill-white" />,
+        miniIcon: <Flame size={12} className="text-amber-500 fill-amber-500" />,
+        gradientBg: 'bg-gradient-to-tr from-amber-500 to-orange-600 shadow-amber-500/25 ring-2 ring-amber-400/20',
+        badgeBg: 'bg-amber-50 dark:bg-amber-950/80 border border-amber-200 dark:border-amber-800',
+        badgeText: 'text-amber-700 dark:text-amber-300',
+        typeTitle: 'Fire Reaction',
+      };
+    }
+    if (rType === 'laugh') {
+      return {
+        category: 'reaction',
+        icon: <Laugh size={22} className="text-white" />,
+        miniIcon: <Laugh size={12} className="text-yellow-500" />,
+        gradientBg: 'bg-gradient-to-tr from-yellow-400 to-amber-500 shadow-yellow-500/25 ring-2 ring-yellow-400/20',
+        badgeBg: 'bg-yellow-50 dark:bg-yellow-950/80 border border-yellow-200 dark:border-yellow-800',
+        badgeText: 'text-yellow-700 dark:text-yellow-300',
+        typeTitle: 'Laugh Reaction',
+      };
+    }
+    if (rType === 'clap') {
+      return {
+        category: 'reaction',
+        icon: <Sparkles size={22} className="text-white" />,
+        miniIcon: <Sparkles size={12} className="text-emerald-500" />,
+        gradientBg: 'bg-gradient-to-tr from-emerald-500 to-teal-500 shadow-emerald-500/25 ring-2 ring-emerald-400/20',
+        badgeBg: 'bg-emerald-50 dark:bg-emerald-950/80 border border-emerald-200 dark:border-emerald-800',
+        badgeText: 'text-emerald-700 dark:text-emerald-300',
+        typeTitle: 'Clap Reaction',
+      };
+    }
+    if (rType === 'wow') {
+      return {
+        category: 'reaction',
+        icon: <Zap size={22} className="text-white fill-white" />,
+        miniIcon: <Zap size={12} className="text-cyan-500 fill-cyan-500" />,
+        gradientBg: 'bg-gradient-to-tr from-cyan-400 to-blue-500 shadow-cyan-500/25 ring-2 ring-cyan-400/20',
+        badgeBg: 'bg-cyan-50 dark:bg-cyan-950/80 border border-cyan-200 dark:border-cyan-800',
+        badgeText: 'text-cyan-700 dark:text-cyan-300',
+        typeTitle: 'Wow Reaction',
+      };
+    }
+    if (rType === 'sad') {
+      return {
+        category: 'reaction',
+        icon: <HeartCrack size={22} className="text-white" />,
+        miniIcon: <HeartCrack size={12} className="text-blue-500" />,
+        gradientBg: 'bg-gradient-to-tr from-blue-400 to-slate-500 shadow-blue-500/25 ring-2 ring-blue-400/20',
+        badgeBg: 'bg-blue-50 dark:bg-blue-950/80 border border-blue-200 dark:border-blue-800',
+        badgeText: 'text-blue-700 dark:text-blue-300',
+        typeTitle: 'Sad Reaction',
+      };
+    }
+    // Default Heart Like
+    return {
+      category: 'reaction',
+      icon: <Heart size={22} className="text-white fill-white" />,
+      miniIcon: <Heart size={12} className="text-rose-500 fill-rose-500" />,
+      gradientBg: 'bg-gradient-to-tr from-rose-500 to-pink-600 shadow-rose-500/25 ring-2 ring-rose-400/20',
+      badgeBg: 'bg-rose-50 dark:bg-rose-950/80 border border-rose-200 dark:border-rose-800',
+      badgeText: 'text-rose-700 dark:text-rose-300',
+      typeTitle: 'Heart Reaction',
+    };
+  }
+
+  // 9. Default Fallback
+  return {
+    category: 'system',
+    icon: <Bell size={22} className="text-white" />,
+    miniIcon: <Bell size={12} className="text-purple-500" />,
+    gradientBg: 'bg-gradient-to-tr from-purple-500 to-indigo-600 shadow-purple-500/25 ring-2 ring-purple-400/20',
+    badgeBg: 'bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700',
+    badgeText: 'text-neutral-700 dark:text-neutral-300',
+    typeTitle: 'Notification',
+  };
+}
 
 export const NotificationsView: React.FC = () => {
   const {
@@ -131,8 +366,8 @@ export const NotificationsView: React.FC = () => {
     setIsRefreshing(true);
     setTimeout(() => {
       setIsRefreshing(false);
-      showFeedback('Notifications updated');
-    }, 500);
+      showFeedback('Notifications updated (Latest at top)');
+    }, 450);
   };
 
   // Batch selection handlers
@@ -183,18 +418,19 @@ export const NotificationsView: React.FC = () => {
     );
   }
 
-  // Filter user's notifications with type-safe ID comparison and dismissed broadcast checking
+  // Filter user's notifications and sort strictly: THE LATEST NOTIFICATION STANDS AT THE VERY TOP
   const userNotifications = useMemo(() => {
     const currentId = Number(currentUser.id);
     const dismissedBroadcasts = safeGetStorage<string[]>(`alokpat_dismissed_broadcasts_${currentId}`, []);
-    return notifications
-      .filter(n => {
-        if (n.userId === 'all') {
-          return !dismissedBroadcasts.includes(n.id);
-        }
-        return Number(n.userId) === currentId;
-      })
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    const matching = notifications.filter(n => {
+      if (n.userId === 'all') {
+        return !dismissedBroadcasts.includes(n.id);
+      }
+      return Number(n.userId) === currentId;
+    });
+
+    // Strictly sort latest first: newest arrived notification stands at the very top
+    return sortNotificationsLatestFirst(matching);
   }, [notifications, currentUser]);
 
   const unreadCount = useMemo(() => {
@@ -202,39 +438,43 @@ export const NotificationsView: React.FC = () => {
   }, [userNotifications]);
 
   // Specific counts for tab badges
-  const commentsCount = useMemo(() => {
-    return userNotifications.filter(n => n.type === 'comment').length;
+  const followsCount = useMemo(() => {
+    return userNotifications.filter(n => getNotificationTypeMeta(n).category === 'follow').length;
+  }, [userNotifications]);
+
+  const verificationCount = useMemo(() => {
+    return userNotifications.filter(n => getNotificationTypeMeta(n).category === 'verification').length;
   }, [userNotifications]);
 
   const reactionsCount = useMemo(() => {
-    return userNotifications.filter(n => n.type === 'like' || n.type === 'reaction').length;
+    return userNotifications.filter(n => n.type === 'like' || n.type === 'reaction' || getNotificationTypeMeta(n).category === 'reaction').length;
   }, [userNotifications]);
 
-  const followsCount = useMemo(() => {
-    return userNotifications.filter(n => n.type === 'follow').length;
+  const commentsCount = useMemo(() => {
+    return userNotifications.filter(n => n.type === 'comment' || getNotificationTypeMeta(n).category === 'comment').length;
   }, [userNotifications]);
 
   const officialCount = useMemo(() => {
-    return userNotifications.filter(
-      n => n.type === 'admin_notice' || n.type === 'admin_warning' || n.type === 'broadcast'
-    ).length;
+    return userNotifications.filter(n => {
+      const cat = getNotificationTypeMeta(n).category;
+      return cat === 'system' || cat === 'broadcast' || cat === 'warning';
+    }).length;
   }, [userNotifications]);
 
-  // Apply category and search filter
+  // Apply category and search filter, maintaining the exact latest-first sequence
   const filteredNotifications = useMemo(() => {
-    return userNotifications.filter(n => {
+    const matched = userNotifications.filter(n => {
+      const meta = getNotificationTypeMeta(n);
+
       // Category filter
       if (activeFilter === 'unread' && n.isRead) return false;
-      if (activeFilter === 'comments' && n.type !== 'comment') return false;
-      if (activeFilter === 'reactions' && n.type !== 'like' && n.type !== 'reaction') return false;
-      if (activeFilter === 'follows' && n.type !== 'follow') return false;
-      if (
-        activeFilter === 'official' &&
-        n.type !== 'admin_notice' &&
-        n.type !== 'admin_warning' &&
-        n.type !== 'broadcast'
-      )
+      if (activeFilter === 'follows' && meta.category !== 'follow') return false;
+      if (activeFilter === 'verification' && meta.category !== 'verification') return false;
+      if (activeFilter === 'reactions' && meta.category !== 'reaction') return false;
+      if (activeFilter === 'comments' && meta.category !== 'comment') return false;
+      if (activeFilter === 'official' && meta.category !== 'system' && meta.category !== 'broadcast' && meta.category !== 'warning') {
         return false;
+      }
 
       // Search query filter
       if (searchQuery.trim()) {
@@ -252,6 +492,9 @@ export const NotificationsView: React.FC = () => {
 
       return true;
     });
+
+    // Strictly sort latest first: the notification which came at the last stands at the very top!
+    return sortNotificationsLatestFirst(matched);
   }, [userNotifications, activeFilter, searchQuery, getUserById]);
 
   // Select all / deselect all
@@ -319,25 +562,6 @@ export const NotificationsView: React.FC = () => {
     }
   };
 
-  // Helper reaction icon / badge
-  const renderReactionBadge = (reactionType?: ReactionType) => {
-    switch (reactionType) {
-      case 'fire':
-        return <span className="text-amber-500 text-xs">🔥</span>;
-      case 'laugh':
-        return <span className="text-yellow-500 text-xs">😂</span>;
-      case 'clap':
-        return <span className="text-emerald-500 text-xs">👏</span>;
-      case 'wow':
-        return <span className="text-cyan-500 text-xs">😮</span>;
-      case 'sad':
-        return <span className="text-blue-500 text-xs">😢</span>;
-      case 'heart':
-      default:
-        return <Heart size={12} className="text-rose-500 fill-rose-500" />;
-    }
-  };
-
   return (
     <div className="pb-24 pt-2">
       {/* Toast Feedback */}
@@ -370,7 +594,7 @@ export const NotificationsView: React.FC = () => {
                 )}
               </div>
               <p className="text-[11px] text-neutral-400 mt-0.5">
-                Activity, interactions, and official updates
+                Activity, interactions, and official updates (Newest on top)
               </p>
             </div>
           </div>
@@ -383,7 +607,7 @@ export const NotificationsView: React.FC = () => {
               className={`p-2 rounded-xl bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-750 text-neutral-700 dark:text-neutral-300 transition-all active:scale-95 cursor-pointer border border-neutral-200/70 dark:border-neutral-700 ${
                 isRefreshing ? 'animate-spin text-purple-600 dark:text-purple-400' : ''
               }`}
-              title="Refresh Notifications"
+              title="Refresh Notifications (Re-sorts latest to top)"
             >
               <RefreshCw size={14} />
             </button>
@@ -541,34 +765,10 @@ export const NotificationsView: React.FC = () => {
           </button>
 
           <button
-            onClick={() => setActiveFilter('comments')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all active:scale-95 cursor-pointer flex items-center gap-1.5 flex-shrink-0 ${
-              activeFilter === 'comments'
-                ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-xs'
-                : 'bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-750 text-neutral-600 dark:text-neutral-300'
-            }`}
-          >
-            <MessageCircle size={12} />
-            <span>Comments ({commentsCount})</span>
-          </button>
-
-          <button
-            onClick={() => setActiveFilter('reactions')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all active:scale-95 cursor-pointer flex items-center gap-1.5 flex-shrink-0 ${
-              activeFilter === 'reactions'
-                ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-xs'
-                : 'bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-750 text-neutral-600 dark:text-neutral-300'
-            }`}
-          >
-            <Heart size={12} />
-            <span>Reactions ({reactionsCount})</span>
-          </button>
-
-          <button
             onClick={() => setActiveFilter('follows')}
             className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all active:scale-95 cursor-pointer flex items-center gap-1.5 flex-shrink-0 ${
               activeFilter === 'follows'
-                ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-xs'
+                ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-xs'
                 : 'bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-750 text-neutral-600 dark:text-neutral-300'
             }`}
           >
@@ -577,15 +777,51 @@ export const NotificationsView: React.FC = () => {
           </button>
 
           <button
+            onClick={() => setActiveFilter('verification')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all active:scale-95 cursor-pointer flex items-center gap-1.5 flex-shrink-0 ${
+              activeFilter === 'verification'
+                ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-xs'
+                : 'bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-750 text-neutral-600 dark:text-neutral-300'
+            }`}
+          >
+            <BadgeCheck size={12} />
+            <span>Verification ({verificationCount})</span>
+          </button>
+
+          <button
+            onClick={() => setActiveFilter('reactions')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all active:scale-95 cursor-pointer flex items-center gap-1.5 flex-shrink-0 ${
+              activeFilter === 'reactions'
+                ? 'bg-gradient-to-r from-rose-600 to-pink-600 text-white shadow-xs'
+                : 'bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-750 text-neutral-600 dark:text-neutral-300'
+            }`}
+          >
+            <Heart size={12} />
+            <span>Reactions ({reactionsCount})</span>
+          </button>
+
+          <button
+            onClick={() => setActiveFilter('comments')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all active:scale-95 cursor-pointer flex items-center gap-1.5 flex-shrink-0 ${
+              activeFilter === 'comments'
+                ? 'bg-gradient-to-r from-indigo-600 to-blue-600 text-white shadow-xs'
+                : 'bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-750 text-neutral-600 dark:text-neutral-300'
+            }`}
+          >
+            <MessageCircle size={12} />
+            <span>Comments ({commentsCount})</span>
+          </button>
+
+          <button
             onClick={() => setActiveFilter('official')}
             className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all active:scale-95 cursor-pointer flex items-center gap-1.5 flex-shrink-0 ${
               activeFilter === 'official'
-                ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-xs'
+                ? 'bg-gradient-to-r from-purple-600 to-violet-700 text-white shadow-xs'
                 : 'bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-750 text-neutral-600 dark:text-neutral-300'
             }`}
           >
             <Shield size={12} />
-            <span>Official ({officialCount})</span>
+            <span>System ({officialCount})</span>
           </button>
         </div>
       </div>
@@ -594,16 +830,18 @@ export const NotificationsView: React.FC = () => {
       {filteredNotifications.length === 0 ? (
         <div className="text-box empty-state-box bg-white dark:bg-neutral-900 rounded-2xl p-10 text-center border border-neutral-200 dark:border-neutral-800 shadow-xs">
           <div className="w-12 h-12 mx-auto rounded-2xl bg-neutral-100 dark:bg-neutral-800 text-neutral-400 dark:text-neutral-400 flex items-center justify-center mb-3">
-            {activeFilter === 'official' ? (
-              <Shield size={22} />
-            ) : activeFilter === 'comments' ? (
-              <MessageCircle size={22} />
-            ) : activeFilter === 'reactions' ? (
-              <Heart size={22} />
+            {activeFilter === 'verification' ? (
+              <BadgeCheck size={22} className="text-blue-500" />
             ) : activeFilter === 'follows' ? (
-              <UserPlus size={22} />
+              <UserPlus size={22} className="text-emerald-500" />
+            ) : activeFilter === 'reactions' ? (
+              <Heart size={22} className="text-rose-500" />
+            ) : activeFilter === 'comments' ? (
+              <MessageCircle size={22} className="text-indigo-500" />
+            ) : activeFilter === 'official' ? (
+              <Shield size={22} className="text-purple-500" />
             ) : (
-              <Bell size={22} />
+              <Bell size={22} className="text-purple-500" />
             )}
           </div>
           <h3 className="font-bold text-sm text-neutral-900 dark:text-white">
@@ -618,7 +856,7 @@ export const NotificationsView: React.FC = () => {
               ? `No notifications found matching "${searchQuery}".`
               : activeFilter === 'unread'
               ? "You've read all your recent notifications. Check back later for new activity!"
-              : 'Recent updates, community reactions, and staff announcements will appear here.'}
+              : 'Recent updates, community reactions, and staff announcements will appear here in chronological order.'}
           </p>
           {(searchQuery || activeFilter !== 'all') && (
             <button
@@ -638,13 +876,8 @@ export const NotificationsView: React.FC = () => {
           {filteredNotifications.map(n => {
             const actor = n.actorId ? getUserById(n.actorId) : undefined;
             const referencedPost = n.postId ? getPostById(n.postId) : undefined;
-            const isWarning = n.type === 'admin_warning';
-            const isNotice = n.type === 'admin_notice';
-            const isBroadcast = n.type === 'broadcast';
+            const meta = getNotificationTypeMeta(n);
             const isFollow = n.type === 'follow';
-            const isComment = n.type === 'comment';
-            const isReaction = n.type === 'like' || n.type === 'reaction';
-
             const isFollowingActor = actor ? currentUser.following.includes(actor.id) : false;
             const isSelf = actor ? currentUser.id === actor.id : false;
             const isSelected = selectedIds.includes(n.id);
@@ -658,11 +891,11 @@ export const NotificationsView: React.FC = () => {
                     ? 'ring-2 ring-purple-600 bg-purple-50/70 dark:bg-purple-950/40 border-purple-300 dark:border-purple-700'
                     : !n.isRead
                     ? 'bg-purple-50/50 dark:bg-purple-950/20 border-purple-200 dark:border-purple-800/70 hover:border-purple-300 dark:hover:border-purple-700'
-                    : isWarning
+                    : meta.category === 'warning'
                     ? 'bg-red-50/40 dark:bg-red-950/20 border-red-200 dark:border-red-900/50 hover:border-red-300'
-                    : isNotice
-                    ? 'bg-purple-50/30 dark:bg-purple-950/20 border-purple-200/80 dark:border-purple-900/50'
-                    : isBroadcast
+                    : meta.category === 'verification'
+                    ? 'bg-blue-50/30 dark:bg-blue-950/20 border-blue-200/80 dark:border-blue-900/50'
+                    : meta.category === 'broadcast'
                     ? 'bg-amber-50/30 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900/50'
                     : 'bg-white dark:bg-neutral-900 border-neutral-200/80 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700'
                 }`}
@@ -683,7 +916,7 @@ export const NotificationsView: React.FC = () => {
                         e.stopPropagation();
                         toggleSelectId(n.id);
                       }}
-                      className="mt-1 flex-shrink-0 cursor-pointer p-0.5"
+                      className="mt-1.5 flex-shrink-0 cursor-pointer p-0.5"
                     >
                       {isSelected ? (
                         <CheckSquare size={17} className="text-purple-600 dark:text-purple-400" />
@@ -693,52 +926,31 @@ export const NotificationsView: React.FC = () => {
                     </div>
                   )}
 
-                  {/* Left Avatar or Type Icon */}
+                  {/* Left Distinct Type Icon Container */}
                   <div className="relative flex-shrink-0">
-                    {actor ? (
-                      <div
-                        onClick={e => {
-                          e.stopPropagation();
-                          openUserProfile(actor.id);
-                        }}
-                        className="cursor-pointer hover:opacity-90 transition-opacity"
-                      >
-                        <UserAvatar user={actor} size="md" />
-                        {/* Reaction / Action Icon Corner Badge */}
-                        <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-white dark:bg-neutral-900 flex items-center justify-center shadow-xs border border-neutral-200 dark:border-neutral-800 text-[11px]">
-                          {isReaction ? (
-                            renderReactionBadge(n.reactionType)
-                          ) : isComment ? (
-                            <MessageCircle size={10} className="text-blue-500 fill-blue-500" />
-                          ) : isFollow ? (
-                            <UserPlus size={10} className="text-emerald-500" />
-                          ) : (
-                            <Bell size={10} className="text-purple-500" />
-                          )}
+                    <div
+                      className={`w-11 h-11 rounded-2xl ${meta.gradientBg} text-white flex items-center justify-center shadow-md flex-shrink-0 relative transition-transform duration-200 group-hover:scale-105`}
+                      title={meta.typeTitle}
+                    >
+                      {meta.icon}
+                      {actor && (
+                        <div
+                          onClick={e => {
+                            e.stopPropagation();
+                            openUserProfile(actor.id);
+                          }}
+                          className="absolute -bottom-1 -right-1 w-5.5 h-5.5 rounded-full border-2 border-white dark:border-neutral-900 overflow-hidden shadow-xs cursor-pointer hover:scale-110 transition-transform bg-neutral-200 dark:bg-neutral-700"
+                          title={`Action by ${actor.name}`}
+                        >
+                          <UserAvatar user={actor} size="xs" />
                         </div>
-                      </div>
-                    ) : isWarning ? (
-                      <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-red-600 to-rose-600 text-white flex items-center justify-center shadow-sm">
-                        <AlertTriangle size={18} />
-                      </div>
-                    ) : isNotice ? (
-                      <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center shadow-sm">
-                        <Shield size={18} />
-                      </div>
-                    ) : isBroadcast ? (
-                      <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-500 text-white flex items-center justify-center shadow-sm">
-                        <Megaphone size={18} />
-                      </div>
-                    ) : (
-                      <div className="w-10 h-10 rounded-2xl bg-purple-100 dark:bg-purple-950 text-purple-600 flex items-center justify-center shadow-sm">
-                        <Bell size={18} />
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
 
                   {/* Body Content */}
                   <div className="flex-1 min-w-0 pr-4">
-                    {/* Header Row: Title & Badges */}
+                    {/* Header Row: Title & Distinct Badges */}
                     <div className="flex items-center gap-1.5 flex-wrap">
                       {actor && (
                         <div
@@ -746,8 +958,9 @@ export const NotificationsView: React.FC = () => {
                             e.stopPropagation();
                             openUserProfile(actor.id);
                           }}
-                          className="flex items-center gap-1 hover:underline cursor-pointer"
+                          className="flex items-center gap-1.5 hover:underline cursor-pointer"
                         >
+                          <UserAvatar user={actor} size="xs" />
                           <span className="font-bold text-xs sm:text-sm text-neutral-900 dark:text-neutral-50 truncate max-w-[150px]">
                             {actor.name}
                           </span>
@@ -755,25 +968,16 @@ export const NotificationsView: React.FC = () => {
                         </div>
                       )}
 
-                      {/* Official Staff or Notice Tag */}
-                      {isBroadcast && (
-                        <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded-md bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300">
-                          Official Broadcast
-                        </span>
-                      )}
-                      {isNotice && (
-                        <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded-md bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300">
-                          System Notice
-                        </span>
-                      )}
-                      {isWarning && (
-                        <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded-md bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-300">
-                          Security Alert
-                        </span>
-                      )}
+                      {/* Distinct Category Tag Pill */}
+                      <span
+                        className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md ${meta.badgeBg} ${meta.badgeText}`}
+                      >
+                        {meta.miniIcon}
+                        <span>{meta.typeTitle}</span>
+                      </span>
 
                       {!actor && (
-                        <h4 className="font-bold text-xs sm:text-sm text-neutral-900 dark:text-neutral-50">
+                        <h4 className="font-bold text-xs sm:text-sm text-neutral-900 dark:text-neutral-50 ml-0.5">
                           {n.title}
                         </h4>
                       )}
@@ -895,11 +1099,15 @@ export const NotificationsView: React.FC = () => {
                       ? 'bg-red-600'
                       : selectedOfficialNotice.type === 'broadcast'
                       ? 'bg-amber-600'
+                      : selectedOfficialNotice.title?.toLowerCase().includes('verification')
+                      ? 'bg-blue-600'
                       : 'bg-gradient-to-r from-purple-600 to-indigo-600'
                   }`}
                 >
                   {selectedOfficialNotice.type === 'admin_warning' ? (
                     <ShieldAlert size={18} />
+                  ) : selectedOfficialNotice.title?.toLowerCase().includes('verification') ? (
+                    <BadgeCheck size={18} />
                   ) : (
                     <ShieldCheck size={18} />
                   )}
@@ -1153,7 +1361,7 @@ export const NotificationsView: React.FC = () => {
             <div className="flex items-center gap-2 pt-2">
               <button
                 onClick={() => setIsClearAllConfirmOpen(false)}
-                className="flex-1 py-2 px-3 rounded-xl bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-200 text-xs font-semibold active:scale-95 transition-all cursor-pointer"
+                className="flex-1 py-2 px-3 rounded-xl bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-750 text-neutral-700 dark:text-neutral-200 text-xs font-semibold active:scale-95 transition-all cursor-pointer"
               >
                 Cancel
               </button>

@@ -2043,6 +2043,20 @@ export const AdminPanel: React.FC = () => {
                                 </div>
                               )}
 
+                              {p.linkUrl && (
+                                <div className="pt-1">
+                                  <a
+                                    href={p.linkUrl.startsWith('http') ? p.linkUrl : `https://${p.linkUrl}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-300 border border-purple-200 dark:border-purple-800 text-[10px] font-semibold hover:underline"
+                                  >
+                                    <ExternalLink size={10} />
+                                    <span>Link button: {p.linkButtonText || 'Visit Website'}</span>
+                                  </a>
+                                </div>
+                              )}
+
                               <div className="flex items-center gap-3 text-[11px] text-neutral-500 dark:text-neutral-400 pt-1">
                                 <span className="flex items-center gap-1">
                                   <Heart size={12} className="text-rose-500 fill-rose-500" />

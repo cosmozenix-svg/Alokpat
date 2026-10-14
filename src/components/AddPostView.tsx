@@ -5,10 +5,11 @@ import {
   Lock,
   X,
   Plus,
-  Globe,
   Upload,
   Layers,
   AlertCircle,
+  Link2,
+  ExternalLink,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { UserAvatar } from './UserAvatar';
@@ -20,8 +21,11 @@ export const AddPostView: React.FC = () => {
 
   const [caption, setCaption] = useState('');
   const [images, setImages] = useState<string[]>([]);
-  const [imageUrlInput, setImageUrlInput] = useState('');
-  const [showUrlInput, setShowUrlInput] = useState(false);
+
+  // Optional Link feature with URL and Button Label
+  const [enableLink, setEnableLink] = useState(false);
+  const [linkUrl, setLinkUrl] = useState('');
+  const [linkButtonText, setLinkButtonText] = useState('');
 
   // YouTube-style keyword tag system
   const [keywordInput, setKeywordInput] = useState('');
@@ -127,23 +131,6 @@ export const AddPostView: React.FC = () => {
     }
   };
 
-  const handleAddImageUrl = async () => {
-    if (!imageUrlInput.trim()) return;
-    const url = imageUrlInput.trim();
-    if (url.startsWith('data:image')) {
-      try {
-        const compressed = await compressImage(url, 1080, 1080, 0.75);
-        setImages(prev => [...prev, compressed]);
-      } catch {
-        setImages(prev => [...prev, url]);
-      }
-    } else {
-      setImages(prev => [...prev, url]);
-    }
-    setImageUrlInput('');
-    setShowUrlInput(false);
-  };
-
   const removeImage = (index: number) => {
     setImages(prev => prev.filter((_, i) => i !== index));
   };
@@ -154,6 +141,13 @@ export const AddPostView: React.FC = () => {
     if (!caption.trim() && images.length === 0) {
       setPostError('Please enter some text or add a photo before publishing.');
       return;
+    }
+
+    if (enableLink) {
+      if (!linkUrl.trim()) {
+        setPostError('Please enter a link in the "Paste link" box, or turn off the Link option.');
+        return;
+      }
     }
 
     let finalKeywords = [...keywords];
@@ -167,12 +161,17 @@ export const AddPostView: React.FC = () => {
       keywords: finalKeywords,
       hideComments,
       isAIPost,
+      linkUrl: enableLink ? linkUrl.trim() : undefined,
+      linkButtonText: enableLink ? (linkButtonText.trim() || 'Visit Website') : undefined,
     });
 
     // Reset and go to feed
     setCaption('');
     setImages([]);
     setKeywords([]);
+    setEnableLink(false);
+    setLinkUrl('');
+    setLinkButtonText('');
     setActiveTab('home');
   };
 
@@ -242,30 +241,27 @@ export const AddPostView: React.FC = () => {
             </div>
           )}
 
-          {/* Photo Upload Tools */}
+          {/* Photo Upload Tools - Only Device Internal Storage */}
           <div className="p-3 bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200/80 dark:border-neutral-800 rounded-xl space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-neutral-700 dark:text-neutral-300 flex items-center gap-1.5">
                 <Image size={14} className="text-neutral-500" />
                 Add Photos (Optional)
               </span>
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="px-3 py-1.5 text-xs font-semibold bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-750 hover:text-purple-600 dark:hover:text-purple-400 rounded-xl flex items-center gap-1.5 shadow-2xs hover:shadow-xs active:scale-95 transition-all cursor-pointer"
-                >
-                  <Upload size={12} /> File
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowUrlInput(!showUrlInput)}
-                  className="px-3 py-1.5 text-xs font-semibold bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-750 hover:text-purple-600 dark:hover:text-purple-400 rounded-xl flex items-center gap-1.5 shadow-2xs hover:shadow-xs active:scale-95 transition-all cursor-pointer"
-                >
-                  <Globe size={12} /> Link
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isProcessingImage}
+                className="px-3.5 py-1.5 text-xs font-semibold bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-800 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-750 hover:text-purple-600 dark:hover:text-purple-400 rounded-xl flex items-center gap-1.5 shadow-2xs hover:shadow-xs active:scale-95 transition-all cursor-pointer disabled:opacity-60"
+              >
+                <Upload size={12} />
+                <span>{isProcessingImage ? 'Processing...' : 'Upload from Device Storage'}</span>
+              </button>
             </div>
+
+            <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+              Photos must be uploaded only from your device's internal storage.
+            </p>
 
             <input
               type="file"
@@ -275,23 +271,115 @@ export const AddPostView: React.FC = () => {
               multiple
               className="hidden"
             />
+          </div>
 
-            {showUrlInput && (
-              <div className="flex items-center gap-1.5 pt-1">
-                <input
-                  type="url"
-                  placeholder="Paste image URL (https://...)"
-                  value={imageUrlInput}
-                  onChange={e => setImageUrlInput(e.target.value)}
-                  className="flex-1 px-3 py-1.5 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-purple-600 shadow-2xs"
-                />
-                <button
-                  type="button"
-                  onClick={handleAddImageUrl}
-                  className="px-3.5 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl text-xs font-semibold shadow-xs hover:shadow-md hover:shadow-purple-500/25 active:scale-95 transition-all cursor-pointer"
+          {/* Optional Link Feature */}
+          <div className="p-3 bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200/80 dark:border-neutral-800 rounded-xl space-y-3">
+            <label className="flex items-center justify-between cursor-pointer select-none">
+              <div className="flex items-center gap-2">
+                <div
+                  className={`p-1.5 rounded-lg transition-colors ${
+                    enableLink
+                      ? 'bg-purple-100 dark:bg-purple-950/80 text-purple-600 dark:text-purple-400'
+                      : 'bg-neutral-200/70 dark:bg-neutral-800 text-neutral-500'
+                  }`}
                 >
-                  Add
-                </button>
+                  <Link2 size={15} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-neutral-900 dark:text-neutral-100">
+                      Link
+                    </span>
+                    <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-neutral-200/80 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 font-medium">
+                      Optional
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                    Add a redirect button to your website, channel, or download page
+                  </p>
+                </div>
+              </div>
+
+              {/* Custom Switch */}
+              <div className="relative inline-flex items-center">
+                <input
+                  type="checkbox"
+                  checked={enableLink}
+                  onChange={e => setEnableLink(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-9 h-5 bg-neutral-200 peer-focus:outline-none rounded-full peer dark:bg-neutral-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-600"></div>
+              </div>
+            </label>
+
+            {enableLink && (
+              <div className="pt-2 border-t border-neutral-200/70 dark:border-neutral-750 space-y-3 animate-in fade-in duration-150">
+                {/* 1st Box: Paste link */}
+                <div>
+                  <label className="block text-[11px] font-bold text-neutral-700 dark:text-neutral-300 mb-1">
+                    Paste link <span className="text-purple-600">*</span>
+                  </label>
+                  <input
+                    type="url"
+                    value={linkUrl}
+                    onChange={e => setLinkUrl(e.target.value)}
+                    placeholder="https://example.com or website URL"
+                    className="w-full px-3 py-2 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl text-xs text-neutral-900 dark:text-white placeholder:text-neutral-400 focus:outline-none focus:ring-1 focus:ring-purple-600 shadow-2xs font-normal"
+                  />
+                  <p className="text-[10px] text-neutral-400 mt-1 px-0.5">
+                    1st box: Paste the website URL or destination link here.
+                  </p>
+                </div>
+
+                {/* 2nd Box: Link button */}
+                <div>
+                  <label className="block text-[11px] font-bold text-neutral-700 dark:text-neutral-300 mb-1">
+                    Link button <span className="text-purple-600">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={linkButtonText}
+                    onChange={e => setLinkButtonText(e.target.value)}
+                    placeholder="e.g. Download; Visit Website; Subscribe"
+                    className="w-full px-3 py-2 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl text-xs text-neutral-900 dark:text-white placeholder:text-neutral-400 focus:outline-none focus:ring-1 focus:ring-purple-600 shadow-2xs font-normal"
+                  />
+                  <p className="text-[10px] text-neutral-400 mt-1 px-0.5">
+                    2nd box: Write what will appear on the button (e.g. Download, Visit Website, Subscribe).
+                  </p>
+
+                  {/* Suggestion tags for quick selection */}
+                  <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                    <span className="text-[10px] text-neutral-400 mr-0.5">Quick presets:</span>
+                    {['Visit Website', 'Download', 'Subscribe', 'Learn More', 'Watch Video', 'Join Now'].map(label => (
+                      <button
+                        key={label}
+                        type="button"
+                        onClick={() => setLinkButtonText(label)}
+                        className={`text-[10px] px-2 py-0.5 rounded-md border transition-all cursor-pointer font-medium ${
+                          linkButtonText === label
+                            ? 'bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-800'
+                            : 'bg-white dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700 hover:border-purple-400'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Live Button Preview */}
+                {(linkUrl || linkButtonText) && (
+                  <div className="p-2.5 rounded-xl bg-purple-50/50 dark:bg-purple-950/20 border border-purple-200/60 dark:border-purple-900/40">
+                    <span className="text-[10px] font-semibold text-purple-700 dark:text-purple-300 block mb-1.5">
+                      Button preview (will appear at the very down of the post):
+                    </span>
+                    <div className="py-2.5 px-4 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-xs">
+                      <span>{linkButtonText.trim() || 'Visit Website'}</span>
+                      <ExternalLink size={13} />
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

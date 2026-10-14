@@ -50,12 +50,6 @@ export const SettingsView: React.FC = () => {
   const [verifyCategory, setVerifyCategory] = useState('Content Creator');
   const [verifyPurpose, setVerifyPurpose] = useState('');
   const [verifyRealName, setVerifyRealName] = useState(currentUser?.name || '');
-  const [verifyDocType, setVerifyDocType] = useState('Government-Issued Photo ID');
-  const [verifyDocNumber, setVerifyDocNumber] = useState('');
-  const [verifyPrimaryLink, setVerifyPrimaryLink] = useState('');
-  const [verifySecondaryLink, setVerifySecondaryLink] = useState('');
-  const [verifyRequestedLabel, setVerifyRequestedLabel] = useState('Verified Creator');
-  const [verifyRequestedTier, setVerifyRequestedTier] = useState<BadgeVariant>('blue');
   const [verifyNotes, setVerifyNotes] = useState('');
   const [verifyError, setVerifyError] = useState<string | null>(null);
   const [verifySuccess, setVerifySuccess] = useState<string | null>(null);
@@ -151,18 +145,12 @@ export const SettingsView: React.FC = () => {
     }
 
     setIsSubmittingVerify(true);
-    const links = [verifyPrimaryLink.trim(), verifySecondaryLink.trim()].filter(Boolean);
 
     const res = requestVerification({
       purpose: verifyPurpose.trim(),
       category: verifyCategory,
       realName: verifyRealName.trim(),
-      documentType: verifyDocType,
-      documentNumber: verifyDocNumber.trim(),
-      links,
       notes: verifyNotes.trim(),
-      requestedTier: verifyRequestedTier,
-      requestedLabel: verifyRequestedLabel.trim() || 'Verified Member',
     });
 
     setIsSubmittingVerify(false);
@@ -760,94 +748,7 @@ export const SettingsView: React.FC = () => {
                 />
               </div>
 
-              {/* Info Box 4: Document Type & Number */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                <div>
-                  <label className="block text-[11px] font-bold text-neutral-700 dark:text-neutral-300 mb-1">
-                    Identity Proof Document Type
-                  </label>
-                  <select
-                    value={verifyDocType}
-                    onChange={e => setVerifyDocType(e.target.value)}
-                    className="w-full p-2.5 bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl text-neutral-900 dark:text-white text-xs focus:outline-none focus:ring-1 focus:ring-purple-600"
-                  >
-                    <option value="Government-Issued Photo ID">Government-Issued Photo ID</option>
-                    <option value="Business Registration / License">Business Registration / License</option>
-                    <option value="Official Corporate Domain Email">Official Corporate Domain Email</option>
-                    <option value="Public Press & Media Coverage">Public Press & Media Coverage</option>
-                    <option value="Portfolio & Intellectual Property">Portfolio & IP Ownership</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-neutral-700 dark:text-neutral-300 mb-1">
-                    Document Ref / Verification Notes
-                  </label>
-                  <input
-                    type="text"
-                    value={verifyDocNumber}
-                    onChange={e => setVerifyDocNumber(e.target.value)}
-                    placeholder="Document reference ID or notes"
-                    className="w-full p-2.5 bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl text-neutral-900 dark:text-white text-xs focus:outline-none focus:ring-1 focus:ring-purple-600"
-                  />
-                </div>
-              </div>
-
-              {/* Info Box 5: Online Proof Links */}
-              <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold text-neutral-700 dark:text-neutral-300">
-                  Online Proof & Official Links
-                </label>
-                <input
-                  type="url"
-                  value={verifyPrimaryLink}
-                  onChange={e => setVerifyPrimaryLink(e.target.value)}
-                  placeholder="Primary Website / Portfolio URL (https://...)"
-                  className="w-full p-2.5 bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl text-neutral-900 dark:text-white text-xs focus:outline-none focus:ring-1 focus:ring-purple-600"
-                />
-                <input
-                  type="url"
-                  value={verifySecondaryLink}
-                  onChange={e => setVerifySecondaryLink(e.target.value)}
-                  placeholder="Supporting Social Profile or Article URL (Optional)"
-                  className="w-full p-2.5 bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl text-neutral-900 dark:text-white text-xs focus:outline-none focus:ring-1 focus:ring-purple-600"
-                />
-              </div>
-
-              {/* Info Box 6: Requested Badge Preference */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                <div>
-                  <label className="block text-[11px] font-bold text-neutral-700 dark:text-neutral-300 mb-1">
-                    Requested Badge Label
-                  </label>
-                  <input
-                    type="text"
-                    value={verifyRequestedLabel}
-                    onChange={e => setVerifyRequestedLabel(e.target.value)}
-                    placeholder="e.g. Verified Creator, Official Staff..."
-                    className="w-full p-2.5 bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl text-neutral-900 dark:text-white text-xs focus:outline-none focus:ring-1 focus:ring-purple-600"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-neutral-700 dark:text-neutral-300 mb-1">
-                    Requested Badge Style
-                  </label>
-                  <select
-                    value={verifyRequestedTier}
-                    onChange={e => setVerifyRequestedTier(e.target.value as BadgeVariant)}
-                    className="w-full p-2.5 bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl text-neutral-900 dark:text-white text-xs focus:outline-none focus:ring-1 focus:ring-purple-600"
-                  >
-                    <option value="blue">Blue (Standard Official)</option>
-                    <option value="gold">Gold (VIP / Leadership)</option>
-                    <option value="purple">Purple (Creative Partner)</option>
-                    <option value="green">Green (Verified Contributor)</option>
-                    <option value="ruby">Ruby (Special Elite)</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Info Box 7: Additional Authenticity Notes */}
+              {/* Additional Notes for Admin Review */}
               <div>
                 <label className="block text-[11px] font-bold text-neutral-700 dark:text-neutral-300 mb-1">
                   Additional Notes for Admin Review

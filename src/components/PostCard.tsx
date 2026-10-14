@@ -14,12 +14,22 @@ import {
   Maximize2,
   X,
   Flag,
+  ExternalLink,
 } from 'lucide-react';
 import { Post, User } from '../types';
 import { useApp } from '../context/AppContext';
 import { UserAvatar } from './UserAvatar';
 import { VerifiedBadge } from './VerifiedBadge';
 import { formatExactDateTime, formatRelativeTime, renderRichText } from '../utils/formatters';
+
+const formatLinkUrl = (url?: string) => {
+  if (!url) return '#';
+  const trimmed = url.trim();
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+  return `https://${trimmed}`;
+};
 
 interface PostCardProps {
   post: Post;
@@ -574,6 +584,23 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onTagClick, defaultSho
           </span>
         )}
       </div>
+
+      {/* Optional Link Button at the very down of the post */}
+      {post.linkUrl && post.linkUrl.trim() && (
+        <div className="px-3.5 py-2.5 border-t border-neutral-100 dark:border-neutral-800 bg-neutral-50/70 dark:bg-neutral-850/40">
+          <a
+            href={formatLinkUrl(post.linkUrl)}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={e => e.stopPropagation()}
+            className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs sm:text-sm shadow-md shadow-purple-600/20 hover:shadow-lg hover:shadow-purple-600/30 active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-2 group select-none text-center"
+            title={`Redirect to ${post.linkUrl}`}
+          >
+            <span className="truncate">{post.linkButtonText?.trim() || 'Visit Website'}</span>
+            <ExternalLink size={15} className="flex-shrink-0 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+          </a>
+        </div>
+      )}
 
       {/* Comments Section */}
       {showComments && (
